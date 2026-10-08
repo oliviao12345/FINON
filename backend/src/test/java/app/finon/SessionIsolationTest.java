@@ -150,6 +150,14 @@ class SessionIsolationTest {
     }
 
     @Test
+    void theHealthCheckAnswersWithoutASessionAndCreatesNoVisitor() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/health"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));
+        assertThat(sessions.count()).isZero();
+        assertThat(accounts.count()).isZero();
+    }
+
+    @Test
     void theSameSessionIdInDifferentCapitalsIsTheSameVisitor() throws Exception {
         post(ALICE, "/api/accounts", "{\"providerIds\":[" + providerId("Monzo") + "]}").andExpect(status().isCreated());
         get(ALICE.toUpperCase(), "/api/accounts").andExpect(jsonPath("$.accounts[?(@.provider.name=='Monzo')]").isNotEmpty());
