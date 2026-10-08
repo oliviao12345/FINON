@@ -1,0 +1,21 @@
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:finon;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create
+    open-in-view: false
+  jackson:
+    default-property-inclusion: always
+
+finon:
+  cors:
+    allowed-origins: ${FINON_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  seed:
+    demo-accounts: true
