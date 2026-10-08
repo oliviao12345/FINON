@@ -9,7 +9,6 @@ import java.time.Clock;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockMultipartFile;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -251,11 +250,6 @@ class OnboardingApiTest {
                         .content("{\"providerIds\":[" + barclays + "],\"customNames\":[\"barclays\",\"Smith Trust\",\"SMITH TRUST\"]}"))
                 .andExpect(status().isCreated());
         org.junit.jupiter.api.Assertions.assertEquals(2, accounts.count());
-    }
-
-    private String addWith(String json) throws Exception {
-        return mvc.perform(post("/api/accounts").contentType(MediaType.APPLICATION_JSON).content(json))
-                .andReturn().getResponse().getContentAsString();
     }
 
     @Test

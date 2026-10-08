@@ -65,7 +65,8 @@ public class AccountController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("statementDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate statementDate)
             throws IOException {
-        String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().replaceAll(".*[\\\\/]", "");
+        String original = file.getOriginalFilename();
+        String name = original == null ? "" : original.replaceAll(".*[\\\\/]", "");
         return service.setStatement(id, name, statementDate, file.getBytes());
     }
 
