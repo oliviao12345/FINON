@@ -41,7 +41,7 @@ The screen has one job: to answer **"is the client ready to submit?"** Almost ev
 | **A temporary copy on the screen** | The list of providers and accounts the backend last sent | A library called TanStack Query in the frontend | It looks after "loading", "failed" and "worked" for every request. After every change the screen asks the backend for a fresh copy. |
 | **Screen-only details** | Which filter is selected, what is typed in a search box, which pop-up is open, a half-filled form | The frontend's own memory | Nothing outside the screen needs to know these. |
 
-**The option I turned down.** I could have let the frontend work out "ready to submit" from the statement dates. That would have been less to send back from the backend, but it would mean the same rule written twice. Instead, the progress bar, the sentence under it, the Submit button and the backend's own check all show the backend's single answer, so they cannot disagree.
+The practical result of keeping "worked out" information in the backend (the reasoning is in section 1) is that the progress bar, the sentence under it, the Submit button and the backend's own check all show one answer, so they cannot disagree.
 
 ## 3. Business rules and validation
 
@@ -59,7 +59,7 @@ The screen has one job: to answer **"is the client ready to submit?"** Almost ev
 Two choices I can explain:
 
 - **Three calendar months, not 90 days.** Months are different lengths, so I count back three months on the calendar the way a person would (31 May minus three months is 28 February). The clock is set up so the tests can fix "today", which lets me test the exact boundary day.
-- **An outdated statement is accepted, not turned away.** It is real information that just isn't recent enough. Keeping it lets the client see exactly what needs replacing instead of losing the record, and it means all three statuses really exist. The calendar warns about this before saving, but the backend has the final say.
+- **An outdated statement is accepted, not turned away.** It is real information that just isn't recent enough. Keeping it lets the client see exactly what needs replacing instead of losing the record, and it means all three statuses really exist. The backend has the final say.
 
 <p align="center"><img src="docs/screenshots/07-submit-refused.png" alt="A premature submit: the backend's reason and the providers at fault" width="520" height="148"></p>
 
@@ -67,7 +67,7 @@ Two choices I can explain:
 
 - **No provider can be added twice, however it is typed.** One rule decides whether two names are "the same": it ignores capitals, accents, spaces and punctuation, and treats "&" and "and" alike. So `HSBC`, `H.S.B.C.` and `hsbc` count as one provider. This is checked for the provider list, for names the client types in, for what is already on their list, for repeats within one request, and for the provider list itself (the app will not start if two entries match). If a request contains a duplicate, the whole request is refused and nothing is added.
 - **Providers the client types in under "Other" stay personal.** They belong to that client only and never join the shared provider list, so they can never appear as a choice for anyone else.
-- **An uploaded file must actually open.** The backend looks inside the file to see what it really is, then checks it is whole: PDFs must load, pictures must display, Word files must be complete. A damaged file is refused and nothing is saved. A genuine file with the wrong ending is accepted, because turning it away would annoy people without protecting anything.
+- **An uploaded file must actually open.** It looks inside the file to see what it really is, then checks it is whole: PDFs must load, pictures must display, Word files must be complete. A damaged file is refused and nothing is saved. A genuine file with the wrong ending is accepted, because turning it away would annoy people without protecting anything.
 - **The category is the client's choice.** It is pre-filled with a suggestion that the client can see and change, and it must be one from a fixed list.
 
 <table>
@@ -88,17 +88,17 @@ Two choices I can explain:
 The "API" is simply the set of requests the frontend can make to the backend. The full list is in the [README](README.md#api). The choices behind it:
 
 - **One request gives the whole picture.** The request for the client's accounts returns the list *and* the ready summary, so the screen never needs a second request to know whether the client can submit.
-- **Every change sends back the updated list.** So the screen can never be out of step with the backend.
 - **Every error looks the same:** a short code (for programs and tests), a message written for the client (shown exactly as it is), and, when a submit is refused, the list of providers holding it up. They all come from one place in the code, so errors are consistent.
 - **The error numbers mean something.** 400 means the request itself was wrong (a future date, a bad name, an unreadable file). 404 means it points at something that does not exist. 409 means a duplicate. 413 means the file is too big. 422 means the request was fine but the situation is not ready, for example submitting while a statement is missing. I kept 400 and 422 apart on purpose.
 - **Each check lives in one sensible place.** Simple checks on the shape and size of a request happen as it arrives. The real rules (duplicates, dates, completeness) sit in the backend's main logic, where the tests can reach them directly.
 
 ## 5. UX decisions and accessibility
 
-- **The Submit button looks switched off but can still be pressed.** I coded it as "looks disabled" (`aria-disabled`) instead of truly disabled. A premature press then shows the backend's explanation and outlines the cards that need fixing. A dead button tells the client nothing. This is the clearest example of a business rule shaping the design.
+- **The Submit button looks switched off but can still be pressed.** I coded it as "looks disabled" (`aria-disabled`) instead of truly disabled. A premature press then shows the backend's explanation and outlines the cards that need fixing. This is the clearest example of a business rule shaping the design.
+
+  **What I weighed, and the downside.** There were three options: (1) a truly disabled button next to a list of what is outstanding; (2) a normal, enabled button that validates when pressed; (3) the middle path I chose. A truly disabled button is the most standard, but it cannot be focused or explain itself, and a keyboard or screen-reader user gets no hint why. A normal button is clear but looks like it will work. I chose the middle path because the explanation appears exactly where the client is looking. The honest downside is that a button that looks off yet responds could puzzle some people, so I kept the plain-text line beside it ("Submit unavailable - 2 providers need attention", itself a button) and the refusal message is announced as an alert. If an accessibility review preferred option 1 or 2, switching is a small change, because the rule itself lives in the backend.
 - **From "what is left?" to done in one tap.** Every segment of the progress bar, and every provider name in the summary sentence, opens the right action for that provider. The line "N providers need attention" shows only those providers. Hovering a bar says what a tap will do ("Add statement?").
 - **Show the verdict before the client commits.** The calendar knows today's date, marks older dates red and says in words whether the statement counts. No date is pre-selected, so no message appears about a date the client has not chosen.
-- **Show the defaults.** Category dropdowns are pre-filled with a suggestion the client can see and change, instead of being set quietly.
 - **Easy to undo and hard to lose work.** Removing a provider asks first. If an upload fails, the chosen file and date stay in place so nothing has to be typed again.
 - **Usable by everyone.** It works with a keyboard and a screen reader, status is never shown by colour alone (always an icon and a word), animations respect the "reduce motion" setting, and the layout works on a phone.
 
@@ -127,35 +127,51 @@ I tested the things I most wanted to protect, as close to the code as possible, 
 
 **Automatic checks before anything goes live.** "CI" means GitHub runs all of these tests by itself every time code changes. The live site and the backend only update once they pass. Vercel's own automatic update is switched off for the main branch, and a final step triggers the update only after the tests succeed. I made every change through a pull request (a proposed change that is checked before it is merged).
 
-**A note on the tests.** I had AI help write most of them, so I treated them as a safety net and not as proof. What matters is that each one checks a rule I had specified.
+**Verify it yourself.** The proof is the automatic checks, not these numbers: every pull request and every merge to `main` shows its results at https://github.com/oliviao12345/FINON/actions. To run them locally: `cd backend && mvn test`, `cd frontend && npm test`, and `cd frontend && npm run e2e` (the README has the details). The counts above are as of the latest merge.
 
 ## 7. Trade-offs, limitations and next steps
 
 | What I chose | What I could have done | What it costs |
 |---|---|---|
 | Keep all data in the backend's **short-term memory** (a small database called H2) | Use a proper saved database such as PostgreSQL | Nothing to install and every demo starts the same. But the data is only kept while the backend is running. When it restarts, or the free host puts it to sleep after a quiet spell, everything the client did is forgotten and the four starting providers return. That includes uploaded files. |
-| **Keep the actual file** (the brief only asked for a name and a date) | Record just the name and date | The client can open what they uploaded, but it means the app stores documents. See the security note below. |
+| **Keep the actual file** (the brief only asked for a name and a date) | Record just the name and date | The client can open what they uploaded, but the app now stores documents. The next paragraphs explain the scope and the security consequences. |
 | A **provider list kept in a file** that I review | Fetch it live from a service | No free service lists everyday consumer providers. A file is cheap and easy to check, but it only stays current if someone updates it. |
 | **Draw Word files inside the page** | Send them to Google's or Microsoft's viewer | Private documents never leave the app. The limit is that older `.doc` files cannot be drawn reliably, so those offer a download instead. |
+| **TanStack Query** for data fetched from the backend | Plain React state with `fetch` | It handles loading, errors and refreshing for every request, so I was not hand-writing the same states over and over. The cost is one more library to learn. |
 | **Don't save the "submitted" moment** | Save a record of each submission | The backend checks and confirms the submit but keeps no history of it. |
 
 **Java instead of Kotlin.** The brief allowed either ("Kotlin/Java") and I used Java 21. Nothing in the design depends on Java: the data shapes are Java "records", which become Kotlin data classes, and the rules sit in ordinary methods that translate directly.
 
-**Not safe for real documents as it stands.** The demo has no sign-in and only one client, yet it stores uploaded files. A real version would need sign-in, rules about who can see what, encrypted storage, virus scanning, rules for how long files are kept, and a log of who did what. I have not built these, and the demo must not be used with real financial documents.
+**Where I went beyond the brief, and what I would cut.** The brief treated an upload as a name and a date, and it estimated about two hours. I knowingly built more: real file storage, checking that files open, in-page previews (PDF, images, Word), categories with drag and drop, a custom calendar and smart search. I did it because the product is only convincing if a client can see and trust what they uploaded. If I had to deliver a strict two-hour version I would cut: file storage and previews (keep the name and date), drag and drop and categories, the custom calendar (use a plain date field with the same server rule), and the progress-bar shortcuts. I would keep the server-owned readiness, the three statuses, duplicate protection and the tests, because those *are* the brief.
 
-**What I chose not to build:** sign-in, more than one client, a permanent database, a history of submissions, and a live provider feed. Each was either outside the brief or needs services the exercise does not have.
+**File handling and the onboarding rules are kept apart on purpose.** Real uploads, integrity checks and previews are the extras described above. I deliberately separated them from the rules that decide whether a client can submit.
+
+- *The file checks answer one question:* is this a supported, readable file (PDF, Word, JPG or PNG, under 5 MB, and not damaged)? They run when the file is uploaded and they do not look at what the document says.
+- *The onboarding rules work on metadata:* which provider it is for, the statement date, and the resulting status (Missing, Uploaded or Outdated). The backend works out readiness from those alone and enforces it when Submit is pressed. FINON never reads transaction histories, balances or any other financial information out of a document, and it does not need to in order to decide readiness.
+- *The one link between the two:* the screen only records a statement after its file has passed the integrity checks, so a damaged file is refused and nothing is recorded. After that, readiness depends only on the statement's date and the file is never inspected again. The backend also still accepts the brief's original metadata-only request (a name and a date, no file), which counts in exactly the same way; the screen does not use it.
+- *The statement date is entered by the client.* It is not compared with the date printed inside the document, so FINON confirms that a client *says* a statement is recent, not that the document proves it. Reading the date out of the document would be a sensible next step, but it needs text extraction and a way to handle scanned pages, so I left it out.
+
+I kept these separate because the rules that matter to the business stay small, easy to test and independent of file formats. A new file type or a better document check cannot change who is allowed to submit, and the riskier document handling can be swapped or removed (as in the two-hour version above) without touching the onboarding logic.
+
+**Not safe for real documents as it stands.** The demo has no sign-in and only one client (the brief put both out of scope), yet it stores uploaded files. Note that a file that opens correctly is not the same as a file that is safe: my checks only confirm a document is intact, they do not scan it for malware. A real version would need sign-in, rules about who can see what, encrypted storage, virus scanning, rules for how long files are kept, and a log of who did what. I have not built these, and the demo must not be used with real financial documents.
 
 **A feature I would add next: warn before a statement runs out.** Today FINON only says a statement is out of date after the three months are up. A friendlier version would warn the client *beforehand*. If a statement that is being uploaded, or one already on file, will stop counting within 14 days, the card would show a small note (not a pop-up), for example: "This statement stops counting on 21 October. You can still use it, but a newer one will last longer." It would never block an upload, only suggest a better one.
 
-I left it out on purpose. The brief is about three statuses and one submit rule, and this adds a fourth, in-between state ("about to run out") that needs its own rule, wording, tests and a decision on whether it should affect "ready". It would also be easy to overdo. I like it because it moves FINON from telling clients about problems to helping them avoid them, and the backend already works out each statement's "valid until" date, so it is a small step from here.
+I left it out on purpose. The brief is about three statuses and one submit rule, and this is an extra on top of that. It would be shown as a hint on a statement that is still valid, so it would not add a fourth status or change the existing rules, but it still needs a chosen threshold, careful wording and tests, and it would be easy to overdo. I like it because it moves FINON from telling clients about problems to helping them avoid them, and the backend already works out each statement's "valid until" date, so it is a small step from here.
 
 **With more time:** a permanent database and proper file storage; a saved record of each submission, made so pressing Submit twice cannot cause problems; a regular check of the provider list against the official Bank of England, PRA and FCA registers; limits on how often the backend can be called, plus better logging; and more browser tests (on a phone-sized screen and with the keyboard only) along with automatic accessibility checks.
 
 ## 8. AI-assisted development and verification
 
-I used **Claude Code** (an AI coding tool I ran from the command line) as an implementation partner, mostly to set up the projects, write the screen and backend code, generate tests and draft the documentation. I made the decisions and it carried them out.
+I used **Claude Code** (an AI coding tool I ran from the command line) as an implementation partner, mostly to set up the projects, write the screen and backend code, generate tests and draft the documentation. I set the requirements and made the product and design decisions, and it did most of the typing.
 
 **How I worked.** I described the behaviour and the rules first, had the AI build against them, then tried the result in the running app and corrected it. It was a back-and-forth, not one request that produced the whole app.
+
+**AI-assisted product and UI design.** I also used AI during the design process, not just for implementation. I started by defining the intended user as a high-net-worth individual and the experience I wanted FINON to deliver: premium, professional, intuitive and trustworthy.
+
+Rather than asking AI to generate a generic financial dashboard, I gave it references from established fintech products, including Investa and Finary, to communicate the visual direction I had in mind. I used them as inspiration for typography, colour, layout and the overall feel of the interface, and I was clear that I did not want to copy their trading screens or add financial analytics. FINON's design stays specific to the onboarding journey.
+
+My focus was on making what can be a tedious administrative process feel simple and considered. The client should immediately understand which statements are required, what has already been completed and what is preventing submission. AI helped me explore and implement the visual direction, but the product requirements, the assumptions about the user and the design priorities were mine, defined and refined throughout the process.
 
 **Decisions I made and directed:** the choice of tools and the split between Vercel and Render; having the backend decide readiness; keeping Submit pressable; accepting outdated statements; keeping real files beyond the brief; keeping typed-in providers out of the shared list; one strict rule for duplicates; categories that are visible and editable; and the rule that nothing goes live unless the automatic checks pass.
 
@@ -164,6 +180,6 @@ I used **Claude Code** (an AI coding tool I ran from the command line) as an imp
 - *Checking uploaded files.* The first version refused any file whose contents did not match its ending. I pushed back: a genuine document with the wrong ending is fine, while a *broken* file is not. We changed it to look inside the file, so damaged files are refused and renamed ones are accepted.
 - *Choosing a category.* The first version quietly assumed a category. After using it in the browser I asked for the suggestion to be shown and editable before saving.
 
-**How I checked the work.** Automatic tests at three levels, hands-on trying in the browser, and pull requests with the checks required before every merge. I did not treat AI-written tests as proof on their own; I read them against the rules I had set.
+**How I checked the work.** Most of the tests were written with AI help, so I treated them as a safety net, not as proof: I read them against the rules I had set, tried the app in the browser, and merged only through pull requests with the automatic checks passing (section 6).
 
 I can walk through any file and explain why it looks the way it does.
