@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
-    proxy: { '/api': 'http://localhost:8080' },
+    proxy: { '/api': process.env.API_PROXY_TARGET ?? 'http://localhost:8080' },
   },
   test: {
     environment: 'jsdom',

@@ -1,4 +1,4 @@
-import type { Account, AccountsResponse, Issue, Provider, SubmitResult } from './types'
+import type { Account, AccountsResponse, CatalogueProvider, Choice, Issue, SubmitResult } from './types'
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
@@ -18,9 +18,10 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
+    const isForm = init?.body instanceof FormData
     res = await fetch(`${BASE}/api${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: isForm ? init?.headers : { 'Content-Type': 'application/json', ...init?.headers },
     })
   } catch {
     throw new ApiError(0, 'NETWORK', "We couldn't reach FINON. Check your connection and try again.")
@@ -40,16 +41,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
+export const statementFileUrl = (id: number, storedAt: number | null) =>
+  `${BASE}/api/accounts/${id}/statement/file${storedAt ? `?v=${storedAt}` : ''}`
+
 export const api = {
-  providers: () => request<Provider[]>('/providers'),
+  providers: () => request<CatalogueProvider[]>('/providers'),
   accounts: () => request<AccountsResponse>('/accounts'),
-  addAccounts: (providerIds: number[]) =>
-    request<AccountsResponse>('/accounts', { method: 'POST', body: JSON.stringify({ providerIds }) }),
+  addAccounts: (providerIds: number[], customNames: string[] = [], choices: Choice[] = []) =>
+    request<AccountsResponse>('/accounts', { method: 'POST', body: JSON.stringify({ providerIds, customNames, choices }) }),
+  setCategory: (id: number, category: string) =>
+    request<Account>(`/accounts/${id}/category`, { method: 'PUT', body: JSON.stringify({ category }) }),
   removeAccount: (id: number) => request<void>(`/accounts/${id}`, { method: 'DELETE' }),
-  setStatement: (id: number, filename: string, statementDate: string) =>
-    request<Account>(`/accounts/${id}/statement`, {
-      method: 'PUT',
-      body: JSON.stringify({ filename, statementDate }),
-    }),
+  setStatement: (id: number, file: File, statementDate: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('statementDate', statementDate)
+    return request<Account>(`/accounts/${id}/statement`, { method: 'PUT', body: form })
+  },
   submit: () => request<SubmitResult>('/submit', { method: 'POST' }),
 }

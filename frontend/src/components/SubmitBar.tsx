@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
+import { ArrowDown, ArrowRight, CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { STATUS_LABEL } from '@/lib/format'
@@ -11,17 +11,18 @@ interface Props {
   submitted: boolean
   error: ApiError | null
   onSubmit: () => void
+  onShowAttention: () => void
 }
 
-export function SubmitBar({ readiness, pending, submitted, error, onSubmit }: Props) {
-  const { canSubmit, total, ready } = readiness
+export function SubmitBar({ readiness, pending, submitted, error, onSubmit, onShowAttention }: Props) {
+  const { canSubmit, total, issues } = readiness
   const hint = submitted
     ? 'Submitted. Nothing more to do right now.'
     : total === 0
       ? 'Add at least one provider to continue.'
       : canSubmit
         ? 'Everything is in order.'
-        : `${ready} of ${total} ready - finish the rest to submit.`
+        : `Submit unavailable - ${issues.length} ${issues.length === 1 ? 'provider needs' : 'providers need'} attention`
 
   return (
     <section aria-label="Submit" className="rise grid gap-3">
@@ -44,10 +45,24 @@ export function SubmitBar({ readiness, pending, submitted, error, onSubmit }: Pr
       )}
 
       <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <p className={cn('flex items-center gap-2 text-sm', canSubmit || submitted ? 'text-foreground' : 'text-muted-foreground')}>
-          {(canSubmit || submitted) && <CheckCircle2 className="size-4 text-ok" aria-hidden />}
-          {hint}
-        </p>
+        {!canSubmit && !submitted && total > 0 ? (
+          <button
+            type="button"
+            onClick={onShowAttention}
+            className="group/hint flex items-center gap-2 rounded-lg text-left text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {hint}
+            <span className="inline-flex shrink-0 items-center gap-1 text-primary underline-offset-4 group-hover/hint:underline">
+              Show them
+              <ArrowDown className="size-3.5" aria-hidden />
+            </span>
+          </button>
+        ) : (
+          <p className={cn('flex items-center gap-2 text-sm', canSubmit || submitted ? 'text-foreground' : 'text-muted-foreground')}>
+            {(canSubmit || submitted) && <CheckCircle2 className="size-4 text-ok" aria-hidden />}
+            {hint}
+          </p>
+        )}
         <button
           type="button"
           aria-disabled={!canSubmit || submitted || pending}

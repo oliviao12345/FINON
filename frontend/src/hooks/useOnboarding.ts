@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import type { Choice } from '@/lib/types'
 
 export const keys = {
   accounts: ['accounts'] as const,
@@ -25,9 +26,12 @@ function useRefreshing<TVars, TData>(fn: (vars: TVars) => Promise<TData>) {
   })
 }
 
-export const useAddAccounts = () => useRefreshing((ids: number[]) => api.addAccounts(ids))
+export const useAddAccounts = () =>
+  useRefreshing((v: { ids: number[]; names: string[]; choices: Choice[] }) => api.addAccounts(v.ids, v.names, v.choices))
+export const useSetCategory = () =>
+  useRefreshing((v: { id: number; category: string }) => api.setCategory(v.id, v.category))
 export const useRemoveAccount = () => useRefreshing((id: number) => api.removeAccount(id))
 export const useSetStatement = () =>
-  useRefreshing((v: { id: number; filename: string; statementDate: string }) =>
-    api.setStatement(v.id, v.filename, v.statementDate))
+  useRefreshing((v: { id: number; file: File; statementDate: string }) =>
+    api.setStatement(v.id, v.file, v.statementDate))
 export const useSubmit = () => useRefreshing(() => api.submit())
