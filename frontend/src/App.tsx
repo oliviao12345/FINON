@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { AlertCircle, Plus, RotateCw, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -410,8 +410,22 @@ export default function App() {
 }
 
 function LoadingState() {
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 4000)
+    return () => window.clearTimeout(timer)
+  }, [])
+
   return (
     <div className="grid gap-4" aria-busy="true" aria-label="Loading your providers">
+      {slow && (
+        <p role="status" data-testid="waking-up" className="rounded-xl border border-primary/30 bg-primary/8 px-4 py-3 text-sm">
+          <span className="font-medium">Waking up the demo backend.</span>{' '}
+          <span className="text-muted-foreground">
+            It runs on free hosting that sleeps when it has not been used for a while, so the first load can take up to a minute. Please keep this page open.
+          </span>
+        </p>
+      )}
       <Skeleton className="h-52 rounded-3xl" />
       <Skeleton className="h-9 w-72 rounded-full" />
       {[0, 1, 2].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
