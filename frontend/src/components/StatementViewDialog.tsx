@@ -121,7 +121,7 @@ function Body({ account, onReplace }: { account: Account; onReplace: (a: Account
           {isImage && <ImagePreview src={url} alt={`Your uploaded statement: ${statement.filename}`} />}
           {isPdf && (
             <iframe
-              src={url}
+              src={`${url}#navpanes=0&toolbar=0&view=FitH`}
               title={`Your uploaded statement: ${statement.filename}`}
               className="h-[28rem] w-full rounded-xl border border-border bg-background"
             />
