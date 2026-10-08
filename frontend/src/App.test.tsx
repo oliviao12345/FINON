@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -1048,6 +1048,53 @@ describe('statement date picker', () => {
     for (let i = 0; i < 3; i++) await userEvent.click(screen.getByRole('button', { name: /previous month/i }))
     await userEvent.click(day('2026-07-08'))
     expect(screen.getByTestId('date-validity')).toHaveAttribute('data-validity', 'current')
+  })
+})
+
+describe('notifications', () => {
+  it('appear at the top right where they are easy to see', async () => {
+    mockApi({
+      'GET /accounts': () => ({ json: overview([account(1, 'HSBC', 'MISSING')]) }),
+      'PUT /accounts/1/statement': () => ({ json: account(1, 'HSBC', 'UPLOADED') }),
+    })
+    renderApp()
+    await screen.findByTestId('ready-count')
+    await userEvent.click(screen.getByRole('button', { name: /add statement for hsbc/i }))
+    await userEvent.upload(await screen.findByLabelText('Statement file'), new File(['x'], 'hsbc.pdf', { type: 'application/pdf' }))
+    await pickToday()
+    await userEvent.click(screen.getByRole('button', { name: 'Save statement' }))
+
+    await screen.findAllByText('Statement saved for HSBC')
+    const stack = document.querySelector('[data-sonner-toaster]')
+    expect(stack).toHaveAttribute('data-y-position', 'top')
+    expect(stack).toHaveAttribute('data-x-position', 'right')
+  })
+})
+
+describe('a slow first load', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('explains that the free backend is waking up, and drops the message once data arrives', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let release: (r: Response) => void = () => {}
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { release = resolve })))
+    renderApp()
+
+    expect(screen.queryByTestId('waking-up')).not.toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(4100) })
+    expect(screen.getByTestId('waking-up')).toHaveTextContent(/waking up the demo backend/i)
+
+    release(new Response(JSON.stringify(overview([account(1, 'Barclays', 'UPLOADED')])), { status: 200 }))
+    vi.useRealTimers()
+    expect(await screen.findByTestId('ready-count')).toBeInTheDocument()
+    expect(screen.queryByTestId('waking-up')).not.toBeInTheDocument()
+  })
+
+  it('shows nothing extra when the backend answers quickly', async () => {
+    mockApi({ 'GET /accounts': () => ({ json: overview([account(1, 'Barclays', 'UPLOADED')]) }) })
+    renderApp()
+    await screen.findByTestId('ready-count')
+    expect(screen.queryByTestId('waking-up')).not.toBeInTheDocument()
   })
 })
 

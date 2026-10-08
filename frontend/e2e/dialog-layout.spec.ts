@@ -14,5 +14,5 @@ test('the button bar sits flush at the bottom of a scrolling dialog', async ({ p
     return { scrollable: el.scrollHeight > el.clientHeight, gap: Math.round(el.getBoundingClientRect().bottom - footer.bottom) }
   })
   expect(scrollable).toBe(true)
-  expect(gap).toBe(0)
+  expect(Math.abs(gap)).toBeLessThan(1)
 })

@@ -40,7 +40,7 @@ There are **48 backend**, **94 frontend** and **2 real-browser** tests, covering
 
 ## 5. Trade-offs and limitations
 
-- **Short-term memory (H2) instead of a saved database.** Nothing to install and every demo starts the same, but everything, including uploaded files, is lost when the backend restarts or the free host sleeps.
+- **Short-term memory (H2) instead of a saved database.** Nothing to install and every demo starts the same, but everything, including uploaded files, is lost when the backend restarts or the free host sleeps. A scheduled check pings the backend every 10 minutes to keep it awake, and the screen says so if the first load is slow.
 - **I went beyond the brief.** It asked for a name and a date in about two hours. I knowingly built file storage, previews, categories with drag and drop, a custom calendar and smart search, because the product is only convincing if a client can see and trust what they uploaded. A strict two-hour version would cut those and keep backend-owned readiness, the three statuses, duplicate protection and the tests.
 - **The provider list is a reviewed file**, not a live feed: no free service lists everyday consumer providers.
 - **Word files are drawn in the browser**, so private documents never leave the app; old `.doc` files download.
