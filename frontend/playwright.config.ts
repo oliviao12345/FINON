@@ -15,7 +15,7 @@ export default defineConfig({
     {
       command: 'mvn -q -B -f ../backend/pom.xml spring-boot:run',
       env: { PORT: apiPort, FINON_CORS_ORIGINS: `http://localhost:${webPort}` },
-      url: `http://localhost:${apiPort}/api/accounts`,
+      url: `http://localhost:${apiPort}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

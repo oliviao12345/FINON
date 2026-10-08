@@ -5,7 +5,7 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    healthCheckPath: /api/accounts
+    healthCheckPath: /api/health
     autoDeployTrigger: checksPass
     envVars:
       - key: FINON_CORS_ORIGINS

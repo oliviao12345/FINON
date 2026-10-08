@@ -36,7 +36,7 @@ It is one small Spring Boot backend (Java 21), not several services, with React 
 
 ## 4. Testing strategy and CI
 
-There are **59 backend**, **99 frontend** and **3 real-browser** tests, covering the boundary day, duplicates, refused submits (including direct API calls), file checks, visitor privacy, and one full journey from refused to successful submit. GitHub runs them on every pull request and merge to `main`. The deploy step needs them all to pass, Vercel's deploy-on-push is off for `main`, and Render only updates after the checks succeed. Since the checks were set up, every change has gone through a pull request; the first two commits went straight to `main`, and branch protection is not yet on. Results: https://github.com/oliviao12345/FINON/actions.
+There are **60 backend**, **99 frontend** and **3 real-browser** tests, covering the boundary day, duplicates, refused submits (including direct API calls), file checks, visitor privacy, and one full journey from refused to successful submit. GitHub runs them on every pull request and merge to `main`. The deploy step needs them all to pass, Vercel's deploy-on-push is off for `main`, and Render only updates after the checks succeed. Since the checks were set up, every change has gone through a pull request; the first two commits went straight to `main`, and branch protection is not yet on. Results: https://github.com/oliviao12345/FINON/actions.
 
 ## 5. Trade-offs and limitations
 
