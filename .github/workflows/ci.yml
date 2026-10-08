@@ -68,3 +68,11 @@ jobs:
         with:
           name: playwright-traces
           path: frontend/test-results
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, frontend, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger frontend production deploy
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"

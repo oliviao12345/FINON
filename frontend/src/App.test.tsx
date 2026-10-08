@@ -159,6 +159,29 @@ describe('statements', () => {
   })
 })
 
+describe('statement file types', () => {
+  async function openUpload() {
+    mockApi({ 'GET /accounts': () => ({ json: overview([account(1, 'HSBC', 'MISSING')]) }) })
+    renderApp()
+    await screen.findByTestId('ready-count')
+    await userEvent.click(screen.getByRole('button', { name: /upload statement for hsbc/i }))
+    return await screen.findByLabelText('Statement file')
+  }
+
+  it.each(['s.pdf', 's.doc', 's.docx', 's.jpg', 's.jpeg', 's.png', 'SCAN.PDF'])('accepts %s', async name => {
+    const input = await openUpload()
+    await userEvent.setup({ applyAccept: false }).upload(input, new File(['x'], name))
+    expect(screen.getByRole('button', { name: 'Save statement' })).toBeEnabled()
+  })
+
+  it.each(['notes.txt', 'sheet.xlsx', 'run.exe', 'noextension'])('rejects %s with a clear message', async name => {
+    const input = await openUpload()
+    await userEvent.setup({ applyAccept: false }).upload(input, new File(['x'], name))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/PDF, Word document/)
+    expect(screen.getByRole('button', { name: 'Save statement' })).toBeDisabled()
+  })
+})
+
 describe('loading and failure states', () => {
   it('offers a retry when the accounts cannot be loaded', async () => {
     mockApi({
