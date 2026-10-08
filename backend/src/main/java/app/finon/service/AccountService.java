@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class AccountService {
+
+    static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "doc", "docx", "jpg", "jpeg", "png");
 
     private final ProviderRepository providers;
     private final ClientAccountRepository accounts;
@@ -83,8 +86,13 @@ public class AccountService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "STATEMENT_IN_FUTURE",
                     "The statement date can't be in the future.");
         }
+        String name = filename.trim();
+        if (!hasAllowedExtension(name)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "UNSUPPORTED_FILE_TYPE",
+                    "Please upload a PDF, Word document (.doc or .docx), JPG or PNG file.");
+        }
         ClientAccount account = find(accountId);
-        account.attach(filename.trim(), date);
+        account.attach(name, date);
         return toDto(accounts.save(account), today);
     }
 
@@ -103,6 +111,11 @@ public class AccountService {
                     r.issues());
         }
         return new SubmitResponse(true, Instant.now(clock), r.total());
+    }
+
+    private static boolean hasAllowedExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 && ALLOWED_EXTENSIONS.contains(name.substring(dot + 1).toLowerCase(Locale.ROOT));
     }
 
     private ClientAccount find(Long id) {

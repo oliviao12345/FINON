@@ -25,3 +25,12 @@ export function joinNames(names: string[]) {
 export function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`
 }
+
+export const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']
+export const FILE_ACCEPT = ALLOWED_EXTENSIONS.map(e => `.${e}`).join(',')
+export const FILE_TYPE_MESSAGE = 'Please choose a PDF, Word document (.doc or .docx), JPG or PNG file.'
+
+export function isAllowedFile(name: string) {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 && ALLOWED_EXTENSIONS.includes(name.slice(dot + 1).toLowerCase())
+}

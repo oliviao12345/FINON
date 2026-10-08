@@ -133,6 +133,29 @@ class OnboardingApiTest {
     }
 
     @Test
+    void acceptsPdfWordAndImageFilesInAnyCase() throws Exception {
+        Long a = addAccount(barclays);
+        for (String name : new String[] {"s.pdf", "s.doc", "s.docx", "s.jpg", "s.jpeg", "s.png", "SCAN.PDF", "Statement.DocX"}) {
+            mvc.perform(put("/api/accounts/" + a + "/statement").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"filename\":\"" + name + "\",\"statementDate\":\"2026-10-01\"}"))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void rejectsUnsupportedFileTypesWithoutChangingTheAccount() throws Exception {
+        Long a = addAccount(barclays);
+        for (String name : new String[] {"notes.txt", "sheet.xlsx", "archive.zip", "script.exe", "noextension", "statement.pdf.exe", ".pdf"}) {
+            mvc.perform(put("/api/accounts/" + a + "/statement").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"filename\":\"" + name + "\",\"statementDate\":\"2026-10-01\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("UNSUPPORTED_FILE_TYPE"));
+        }
+        mvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$.accounts[0].status").value("MISSING"));
+    }
+
+    @Test
     void removingAnAccountDropsItFromReadiness() throws Exception {
         upload(addAccount(barclays), "2026-10-01");
         Long b = addAccount(hsbc);

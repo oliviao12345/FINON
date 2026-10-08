@@ -3,7 +3,7 @@ import { FileUp, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { todayIso } from '@/lib/format'
+import { FILE_ACCEPT, FILE_TYPE_MESSAGE, isAllowedFile, todayIso } from '@/lib/format'
 import type { Account } from '@/lib/types'
 
 interface Props {
@@ -26,6 +26,7 @@ export function UploadDialog({ account, pending, error, onClose, onSave }: Props
 
 function Form({ account, pending, error, onSave }: Omit<Props, 'onClose' | 'account'> & { account: Account }) {
   const [filename, setFilename] = useState('')
+  const [fileError, setFileError] = useState<string | null>(null)
   const [date, setDate] = useState(todayIso())
   const fileRef = useRef<HTMLInputElement>(null)
   const replacing = account.statement !== null
@@ -55,9 +56,15 @@ function Form({ account, pending, error, onSave }: Omit<Props, 'onClose' | 'acco
           ref={fileRef}
           id="statement-file"
           type="file"
-          accept=".pdf,.png,.jpg,.jpeg"
+          accept={FILE_ACCEPT}
           className="sr-only"
-          onChange={e => setFilename(e.target.files?.[0]?.name ?? '')}
+          onChange={e => {
+            const name = e.target.files?.[0]?.name ?? ''
+            const ok = name === '' || isAllowedFile(name)
+            setFilename(ok ? name : '')
+            setFileError(ok ? null : FILE_TYPE_MESSAGE)
+          }}
+          aria-describedby="statement-file-help"
         />
         <button
           type="button"
@@ -67,6 +74,9 @@ function Form({ account, pending, error, onSave }: Omit<Props, 'onClose' | 'acco
           <FileUp className="size-5 shrink-0 text-primary" aria-hidden />
           <span className="truncate">{filename || 'Choose a file…'}</span>
         </button>
+        <p id="statement-file-help" className={fileError ? 'text-xs text-bad' : 'text-xs text-muted-foreground'} role={fileError ? 'alert' : undefined}>
+          {fileError ?? 'PDF, Word (.doc, .docx), JPG or PNG.'}
+        </p>
       </div>
 
       <div className="grid gap-2">
