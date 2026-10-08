@@ -32,14 +32,14 @@ type Handler = (body: unknown) => { status?: number; json?: unknown }
 type Routes = Record<string, Handler>
 
 export function mockApi(routes: Routes) {
-  const calls: { key: string; body: unknown }[] = []
+  const calls: { key: string; body: unknown; headers: Record<string, string> }[] = []
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
     const path = String(url).replace(/^.*\/api/, '')
     const key = `${init?.method ?? 'GET'} ${path}`
     const body = init?.body instanceof FormData
       ? { filename: (init.body.get('file') as File).name, statementDate: init.body.get('statementDate') }
       : init?.body ? JSON.parse(String(init.body)) : undefined
-    calls.push({ key, body })
+    calls.push({ key, body, headers: (init?.headers ?? {}) as Record<string, string> })
     const handler = routes[key]
     if (!handler) throw new Error(`unmocked ${key}`)
     const { status = 200, json } = handler(body)

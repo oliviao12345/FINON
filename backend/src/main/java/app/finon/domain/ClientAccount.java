@@ -3,17 +3,23 @@ package app.finon.domain;
 import jakarta.persistence.*;
 
 @Entity
+@Table(uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"session_id", "provider_id"}),
+        @UniqueConstraint(columnNames = {"session_id", "custom_name"})
+})
 public class ClientAccount {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "provider_id", unique = true)
+    @Column(nullable = false, length = 36)
+    private String sessionId;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "provider_id")
     private Provider provider;
 
-    @Column(unique = true)
     private String customName;
 
     @Column(nullable = false)
@@ -25,18 +31,21 @@ public class ClientAccount {
 
     protected ClientAccount() {}
 
-    public ClientAccount(Provider provider) {
+    public ClientAccount(String sessionId, Provider provider) {
+        this.sessionId = sessionId;
         this.provider = provider;
         this.category = Categories.isValid(provider.getCategory()) ? provider.getCategory() : "Other";
     }
 
-    public static ClientAccount personal(String customName) {
+    public static ClientAccount personal(String sessionId, String customName) {
         ClientAccount account = new ClientAccount();
+        account.sessionId = sessionId;
         account.customName = customName;
         return account;
     }
 
     public Long getId() { return id; }
+    public String getSessionId() { return sessionId; }
     public Provider getProvider() { return provider; }
     public String getCustomName() { return customName; }
     public String getCategory() { return category; }

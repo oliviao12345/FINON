@@ -7,13 +7,8 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import app.finon.service.NameKey;
-import app.finon.service.SamplePdf;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,18 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 class Seed implements CommandLineRunner {
 
     private final ProviderRepository providers;
-    private final ClientAccountRepository accounts;
-    private final StatementFileRepository files;
-    private final Clock clock;
-    private final boolean demoAccounts;
-
-    Seed(ProviderRepository providers, ClientAccountRepository accounts, StatementFileRepository files, Clock clock,
-         @Value("${finon.seed.demo-accounts:true}") boolean demoAccounts) {
+    Seed(ProviderRepository providers) {
         this.providers = providers;
-        this.accounts = accounts;
-        this.files = files;
-        this.clock = clock;
-        this.demoAccounts = demoAccounts;
     }
 
     @Override
@@ -45,27 +30,7 @@ class Seed implements CommandLineRunner {
         requireUniqueNames(loaded);
         applyHelp(loaded);
         applyWebsites(loaded);
-        List<Provider> catalogue = providers.saveAll(loaded);
-
-        if (!demoAccounts) return;
-
-        LocalDate today = LocalDate.now(clock);
-        seed(catalogue, "Barclays", "statement_jan.pdf", today.minusWeeks(3));
-        seed(catalogue, "HSBC", null, null);
-        seed(catalogue, "Vanguard", "old_statement.pdf", today.minusMonths(5));
-        seed(catalogue, "Fidelity", "q4_2025.pdf", today.minusDays(40));
-    }
-
-    private void seed(List<Provider> catalogue, String name, String file, LocalDate date) {
-        Provider p = catalogue.stream().filter(c -> c.getName().equals(name)).findFirst().orElseThrow();
-        ClientAccount account = new ClientAccount(p);
-        if (file != null) account.attach(file, date);
-        ClientAccount saved = accounts.save(account);
-        if (file != null) {
-            files.save(new StatementFile(saved.getId(), "application/pdf", SamplePdf.of(name, date.toString())));
-            saved.getStatement().markFileStored(Instant.now(clock), "application/pdf");
-            accounts.save(saved);
-        }
+        providers.saveAll(loaded);
     }
 
     private static void requireUniqueNames(List<Provider> catalogue) {

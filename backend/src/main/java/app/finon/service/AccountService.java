@@ -25,24 +25,30 @@ public class AccountService {
 
     static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "doc", "docx", "jpg", "jpeg", "png");
 
+    static final int MAX_ACCOUNTS = 80;
     private static final Pattern CUSTOM_NAME = Pattern.compile("^[\\p{L}\\p{N} &'’.,()/+-]{2,80}$");
 
     private final ProviderRepository providers;
     private final ClientAccountRepository accounts;
     private final StatementFileRepository files;
+    private final SessionService sessions;
     private final Clock clock;
+    private final long maxStoredBytes;
 
     public AccountService(ProviderRepository providers, ClientAccountRepository accounts,
-                          StatementFileRepository files, Clock clock) {
+                          StatementFileRepository files, SessionService sessions, Clock clock,
+                          @org.springframework.beans.factory.annotation.Value("${finon.sessions.max-stored-kb:25600}") long maxStoredKb) {
+        this.maxStoredBytes = maxStoredKb * 1024;
         this.providers = providers;
         this.accounts = accounts;
         this.files = files;
+        this.sessions = sessions;
         this.clock = clock;
     }
 
-    @Transactional(readOnly = true)
-    public List<ProviderDto> availableProviders() {
-        Set<Long> taken = accounts.findAll().stream()
+    public List<ProviderDto> availableProviders(String sessionHeader) {
+        String session = sessions.open(sessionHeader);
+        Set<Long> taken = accounts.findAllBySessionId(session).stream()
                 .filter(a -> !a.isPersonal())
                 .map(a -> a.getProvider().getId())
                 .collect(Collectors.toSet());
@@ -52,10 +58,13 @@ public class AccountService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
-    public AccountsResponse overview() {
+    public AccountsResponse overview(String sessionHeader) {
+        return overviewFor(sessions.open(sessionHeader));
+    }
+
+    private AccountsResponse overviewFor(String session) {
         LocalDate today = today();
-        List<AccountDto> rows = accounts.findAll().stream()
+        List<AccountDto> rows = accounts.findAllBySessionId(session).stream()
                 .sorted(Comparator.<ClientAccount>comparingInt(a -> a.isPersonal() ? 1 : 0)
                         .thenComparingInt(a -> Categories.rank(a.getCategory()))
                         .thenComparing(a -> a.displayName().toLowerCase(Locale.ROOT)))
@@ -64,7 +73,8 @@ public class AccountService {
         return new AccountsResponse(rows, readiness(rows));
     }
 
-    public AccountsResponse add(List<Long> providerIds, List<String> customNames, List<Choice> choices) {
+    public AccountsResponse add(String sessionHeader, List<Long> providerIds, List<String> customNames, List<Choice> choices) {
+        String session = sessions.open(sessionHeader);
         List<Long> ids = providerIds == null ? List.of() : providerIds;
         List<String> names = customNames == null ? List.of() : customNames;
         if (ids.isEmpty() && names.isEmpty()) {
@@ -109,7 +119,7 @@ public class AccountService {
             }
         }
 
-        List<ClientAccount> current = accounts.findAll();
+        List<ClientAccount> current = accounts.findAllBySessionId(session);
         Set<Long> existingIds = current.stream().filter(a -> !a.isPersonal())
                 .map(a -> a.getProvider().getId()).collect(Collectors.toSet());
         Set<String> existingPersonal = current.stream().filter(ClientAccount::isPersonal)
@@ -120,6 +130,10 @@ public class AccountService {
                 .forEach(p -> duplicates.add(p.getName()));
         personalTargets.stream().filter(existingPersonal::contains)
                 .forEach(k -> duplicates.add(personalLabels.get(k)));
+        if (current.size() + catalogueTargets.size() + personalLabels.size() > MAX_ACCOUNTS) {
+            throw new ApiException(HttpStatus.CONFLICT, "TOO_MANY_PROVIDERS",
+                    "The demo is limited to " + MAX_ACCOUNTS + " providers per visitor. Remove one before adding more.");
+        }
         if (!duplicates.isEmpty()) {
             duplicates.sort(String::compareToIgnoreCase);
             throw new ApiException(HttpStatus.CONFLICT, "DUPLICATE_PROVIDER",
@@ -134,40 +148,43 @@ public class AccountService {
             }
         }
         catalogueTargets.values().forEach(p -> {
-            ClientAccount account = new ClientAccount(p);
+            ClientAccount account = new ClientAccount(session, p);
             String chosen = categoryById.getOrDefault(p.getId(), nameChoiceForCatalogue.get(p.getId()));
             if (chosen != null) account.setCategory(chosen);
             accounts.save(account);
         });
         personalLabels.forEach((k, n) -> {
-            ClientAccount account = ClientAccount.personal(n);
+            ClientAccount account = ClientAccount.personal(session, n);
             String chosen = categoryByName.get(k);
             if (chosen != null) account.setCategory(chosen);
             accounts.save(account);
         });
-        return overview();
+        return overviewFor(session);
     }
 
-    public AccountDto setCategory(Long accountId, String category) {
+    public AccountDto setCategory(String sessionHeader, Long accountId, String category) {
+        String session = sessions.open(sessionHeader);
         if (!Categories.isValid(category)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CATEGORY",
                     "Please choose one of: " + String.join(", ", Categories.ALL) + ".");
         }
-        ClientAccount account = find(accountId);
+        ClientAccount account = find(session, accountId);
         account.setCategory(category);
         return toDto(accounts.save(account), today());
     }
 
-    public void remove(Long accountId) {
-        accounts.delete(find(accountId));
+    public void remove(String sessionHeader, Long accountId) {
+        String session = sessions.open(sessionHeader);
+        accounts.delete(find(session, accountId));
         files.deleteById(accountId);
     }
 
-    public AccountDto setStatement(Long accountId, String filename, LocalDate date) {
-        return setStatement(accountId, filename, date, null);
+    public AccountDto setStatement(String sessionHeader, Long accountId, String filename, LocalDate date) {
+        return setStatement(sessionHeader, accountId, filename, date, null);
     }
 
-    public AccountDto setStatement(Long accountId, String filename, LocalDate date, byte[] content) {
+    public AccountDto setStatement(String sessionHeader, Long accountId, String filename, LocalDate date, byte[] content) {
+        String session = sessions.open(sessionHeader);
         LocalDate today = today();
         if (date.isAfter(today)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "STATEMENT_IN_FUTURE",
@@ -188,7 +205,8 @@ public class AccountService {
             }
         }
         FileRules.Kind kind = content == null ? null : requireReadable(content);
-        ClientAccount account = find(accountId);
+        ClientAccount account = find(session, accountId);
+        if (content != null) requireRoomFor(session, accountId, content.length);
         account.attach(name, date);
         if (kind != null) {
             files.save(new StatementFile(accountId, kind.mime, content));
@@ -199,9 +217,9 @@ public class AccountService {
         return toDto(accounts.save(account), today);
     }
 
-    @Transactional(readOnly = true)
-    public StoredFile fileFor(Long accountId) {
-        ClientAccount account = find(accountId);
+    public StoredFile fileFor(String sessionHeader, Long accountId) {
+        String session = sessions.open(sessionHeader);
+        ClientAccount account = find(session, accountId);
         StatementFile file = account.getStatement() == null || !account.getStatement().isFileStored()
                 ? null : files.findById(accountId).orElse(null);
         if (file == null) {
@@ -212,8 +230,8 @@ public class AccountService {
 
     public record StoredFile(String filename, String contentType, byte[] content) {}
 
-    public SubmitResponse submit() {
-        AccountsResponse current = overview();
+    public SubmitResponse submit(String sessionHeader) {
+        AccountsResponse current = overviewFor(sessions.open(sessionHeader));
         Readiness r = current.readiness();
         if (r.total() == 0) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "NO_ACCOUNTS",
@@ -252,8 +270,18 @@ public class AccountService {
         return name;
     }
 
-    private ClientAccount find(Long id) {
-        return accounts.findById(id).orElseThrow(() ->
+    private void requireRoomFor(String session, Long accountId, long newBytes) {
+        List<Long> ids = accounts.findAllBySessionId(session).stream().map(ClientAccount::getId).toList();
+        long used = files.totalBytesFor(ids);
+        long replacing = files.findById(accountId).map(StatementFile::getSizeBytes).orElse(0L);
+        if (used - replacing + newBytes > maxStoredBytes) {
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "STORAGE_LIMIT",
+                    "Your demo space is full. Remove a file or a provider, then try again.");
+        }
+    }
+
+    private ClientAccount find(String session, Long id) {
+        return accounts.findByIdAndSessionId(id, session).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "That provider isn't on your list."));
     }
 
