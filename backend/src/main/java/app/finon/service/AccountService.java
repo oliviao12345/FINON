@@ -187,18 +187,10 @@ public class AccountService {
                         "Please choose a file under 5 MB.");
             }
         }
-        FileRules.Kind kind = null;
-        if (content != null) {
-            kind = FileRules.detect(content);
-            if (kind == null || !FileRules.isReadable(kind, content)) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "FILE_UNREADABLE",
-                        "We couldn't open that file. It looks damaged or incomplete, so we haven't saved it. "
-                                + "Please check it opens on your device, or choose another copy of the statement.");
-            }
-        }
+        FileRules.Kind kind = content == null ? null : requireReadable(content);
         ClientAccount account = find(accountId);
         account.attach(name, date);
-        if (content != null) {
+        if (kind != null) {
             files.save(new StatementFile(accountId, kind.mime, content));
             account.getStatement().markFileStored(Instant.now(clock), kind.mime);
         } else {
@@ -235,6 +227,16 @@ public class AccountService {
                     r.issues());
         }
         return new SubmitResponse(true, Instant.now(clock), r.total());
+    }
+
+    private static FileRules.Kind requireReadable(byte[] content) {
+        FileRules.Kind kind = FileRules.detect(content);
+        if (kind == null || !FileRules.isReadable(kind, content)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "FILE_UNREADABLE",
+                    "We couldn't open that file. It looks damaged or incomplete, so we haven't saved it. "
+                            + "Please check it opens on your device, or choose another copy of the statement.");
+        }
+        return kind;
     }
 
     private static String key(String name) {
