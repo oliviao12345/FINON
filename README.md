@@ -92,6 +92,10 @@ flowchart LR
 
 The server owns every rule. The screen renders what the API returns (including the ready count and whether submitting is allowed) and never recomputes it, so the two cannot disagree.
 
+### File handling and the onboarding rules
+
+Real file uploads, integrity checks and previews go beyond the original brief, which only asked for a file name and a date. They are kept separate from the rules that decide whether a client can submit. The file checks only confirm that a file is supported and readable (and not damaged). Readiness is worked out from metadata alone: the provider, the date the client enters for the statement, and the resulting Missing, Uploaded or Outdated status, enforced by the Spring Boot backend. FINON does not read figures or dates out of the document, so the statement date is whatever the client enters. Because files are stored, don't upload real financial documents to the public demo. The reasoning is in [NOTES.md](NOTES.md).
+
 ### Data model
 
 ```mermaid
