@@ -2,16 +2,19 @@ import { cn } from '@/lib/utils'
 import { STATUS_LABEL } from '@/lib/format'
 import type { Account, Status } from '@/lib/types'
 
-export type Filter = 'ALL' | Status
+export type Filter = 'ALL' | 'ATTENTION' | Status
 
-const ORDER: Filter[] = ['ALL', 'MISSING', 'OUTDATED', 'UPLOADED']
+const ORDER: Filter[] = ['ALL', 'ATTENTION', 'MISSING', 'OUTDATED', 'UPLOADED']
+
+export const matchesFilter = (a: Account, f: Filter) =>
+  f === 'ALL' || (f === 'ATTENTION' ? a.status !== 'UPLOADED' : a.status === f)
 
 export function FilterBar({ accounts, value, onChange }: { accounts: Account[]; value: Filter; onChange: (f: Filter) => void }) {
-  const count = (f: Filter) => (f === 'ALL' ? accounts.length : accounts.filter(a => a.status === f).length)
+  const count = (f: Filter) => accounts.filter(a => matchesFilter(a, f)).length
 
   return (
     <div role="group" aria-label="Filter providers by status" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-      {ORDER.map(f => {
+      {ORDER.filter(f => f !== 'ATTENTION' || count(f) > 0 || value === f).map(f => {
         const active = value === f
         return (
           <button
@@ -26,7 +29,7 @@ export function FilterBar({ accounts, value, onChange }: { accounts: Account[]; 
                 : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
-            {f === 'ALL' ? 'All' : STATUS_LABEL[f]}
+            {f === 'ALL' ? 'All' : f === 'ATTENTION' ? 'Needs attention' : STATUS_LABEL[f]}
             <span className={cn('rounded-full px-1.5 text-xs tabular-nums', active ? 'bg-primary/20' : 'bg-muted')}>{count(f)}</span>
           </button>
         )

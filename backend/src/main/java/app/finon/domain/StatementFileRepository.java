@@ -2,5 +2,5 @@ package app.finon.domain;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ClientAccountRepository extends JpaRepository<ClientAccount, Long> {
+public interface StatementFileRepository extends JpaRepository<StatementFile, Long> {
 }

@@ -7,8 +7,16 @@ export function account(id: number, name: string, status: Status): Account {
   return {
     id,
     provider: provider(id, name),
+    category: 'Bank',
+    manual: false,
     status,
-    statement: status === 'MISSING' ? null : { filename: `${name}.pdf`, statementDate: status === 'OUTDATED' ? '2026-04-01' : '2026-09-20' },
+    statement: status === 'MISSING' ? null : {
+      filename: `${name}.pdf`,
+      statementDate: status === 'OUTDATED' ? '2026-04-01' : '2026-09-20',
+      hasFile: true,
+      storedAt: 1_790_000_000_000,
+      contentType: 'application/pdf',
+    },
   }
 }
 
@@ -28,7 +36,9 @@ export function mockApi(routes: Routes) {
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
     const path = String(url).replace(/^.*\/api/, '')
     const key = `${init?.method ?? 'GET'} ${path}`
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined
+    const body = init?.body instanceof FormData
+      ? { filename: (init.body.get('file') as File).name, statementDate: init.body.get('statementDate') }
+      : init?.body ? JSON.parse(String(init.body)) : undefined
     calls.push({ key, body })
     const handler = routes[key]
     if (!handler) throw new Error(`unmocked ${key}`)
