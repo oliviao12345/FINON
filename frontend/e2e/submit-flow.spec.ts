@@ -75,7 +75,7 @@ test('complete the pack and submit', async ({ page, request }) => {
   await page.getByRole('button', { name: 'Save statement' }).click()
   await page.getByTestId('account-Barclays').getByRole('button', { name: /view statement for barclays/i }).click()
   await expect(page.getByTestId('word-preview')).toHaveAttribute('data-state', 'ready')
-  await expect(page.getByLabel(/preview of sample\.docx/i)).toContainText('Vanguard statement (sample)')
+  await expect(page.getByLabel(/preview of sample\.docx/i)).toContainText('Sample statement')
   await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click()
   await expect(page.getByRole('dialog')).toBeHidden()
 

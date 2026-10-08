@@ -33,7 +33,7 @@ export function DraggableAccount(props: CardProps) {
 
 export function DragPreview({ account }: { account: Account }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-primary/60 bg-card px-4 py-3 text-sm shadow-2xl">
+    <div className="flex w-fit max-w-[22rem] items-center gap-3 rounded-2xl border border-primary/60 bg-card px-4 py-3 text-sm shadow-2xl">
       <GripVertical className="size-4 text-primary" aria-hidden />
       <span className="font-medium">{account.provider.name}</span>
       <span className="text-muted-foreground">Drop on a category</span>
