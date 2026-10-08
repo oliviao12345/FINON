@@ -1,34 +1,108 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+
+const pdf = readFileSync(new URL('./fixtures/sample.pdf', import.meta.url))
+
+test.use({ viewport: { width: 1100, height: 2600 } })
+
+const pad = (n: number) => String(n).padStart(2, '0')
+const now = new Date()
+const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 
 test('complete the pack and submit', async ({ page, request }) => {
-  const before = await (await request.get('http://localhost:8080/api/accounts')).json()
+  const before = await (await request.get(`http://localhost:${process.env.E2E_API_PORT ?? '8080'}/api/accounts`)).json()
   test.skip(before.readiness.total !== 4, 'needs the freshly seeded demo data')
 
   await page.goto('/')
   await expect(page.getByTestId('ready-count')).toHaveText('2 of 4 ready')
 
-  const submit = page.getByRole('button', { name: /^submit/i })
+  const submit = page.getByRole('button', { name: /^submit$/i })
   await expect(submit).toHaveAttribute('aria-disabled', 'true')
   await submit.click({ force: true })
   await expect(page.getByRole('alert')).toContainText('2 providers still need a current statement')
 
-  await page.getByRole('button', { name: /upload statement for hsbc/i }).click()
-  await page.getByLabel('Statement file').setInputFiles({ name: 'hsbc_sep.pdf', mimeType: 'application/pdf', buffer: Buffer.from('x') })
+  await page.getByRole('button', { name: /add statement for hsbc/i }).click()
+  await page.getByLabel('Statement file').setInputFiles({ name: 'cut-off.pdf', mimeType: 'application/pdf', buffer: pdf.subarray(0, 300) })
+  await page.locator('#statement-date').click()
+  await page.locator(`[data-day="${today}"] button`).click()
   await page.getByRole('button', { name: 'Save statement' }).click()
+  await expect(page.getByRole('alert')).toContainText("couldn't open that file")
+  await expect(page.getByTestId('account-HSBC')).toContainText('Missing')
+  await page.getByLabel('Statement file').setInputFiles({ name: 'hsbc_sep.pdf', mimeType: 'application/pdf', buffer: pdf })
+  await page.locator('#statement-date').click()
+  await page.locator(`[data-day="${today}"] button`).click()
+  await page.getByRole('button', { name: /^(Save statement|Try again)$/ }).click()
   await expect(page.getByTestId('account-HSBC')).toContainText('Uploaded')
 
   await page.getByRole('button', { name: /replace statement for vanguard/i }).click()
-  await page.getByLabel('Statement file').setInputFiles({ name: 'vanguard_sep.pdf', mimeType: 'application/pdf', buffer: Buffer.from('x') })
+  await page.getByLabel('Statement file').setInputFiles({ name: 'vanguard_sep.pdf', mimeType: 'application/pdf', buffer: pdf })
+  await page.locator('#statement-date').click()
+  await page.locator(`[data-day="${today}"] button`).click()
   await page.getByRole('button', { name: 'Save statement' }).click()
   await expect(page.getByTestId('ready-count')).toHaveText('4 of 4 ready')
 
+  await page.getByTestId('account-HSBC').getByRole('button', { name: /view statement for hsbc/i }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByTestId('view-filename')).toHaveText('hsbc_sep.pdf')
+  await expect(dialog.getByTitle(/your uploaded statement/i)).toBeVisible()
+  const served = await page.request.get(await dialog.getByTitle(/your uploaded statement/i).getAttribute('src') as string)
+  expect(served.status()).toBe(200)
+  expect(served.headers()['content-type']).toBe('application/pdf')
+  expect((await served.body()).toString()).toContain('Sample statement')
+  await dialog.getByRole('button', { name: 'Close' }).first().click()
+
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await page.getByTestId('account-HSBC').scrollIntoViewIfNeeded()
+  const handle = page.getByRole('button', { name: 'Move HSBC to another category' })
+  const from = (await handle.boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2 + 12, { steps: 4 })
+  const savings = page.getByTestId('group-savings')
+  await expect(savings).toBeVisible()
+  const to = (await savings.boundingBox())!
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 })
+  await page.mouse.up()
+  await expect(page.getByTestId('group-savings').getByTestId('account-HSBC')).toBeVisible()
+  await expect(page.getByText('HSBC moved to Savings')).toBeVisible()
+  await page.getByTestId('account-HSBC').getByLabel('Category for HSBC').selectOption('Bank')
+  await expect(page.getByTestId('group-bank').getByTestId('account-HSBC')).toBeVisible()
+
+  await page.getByRole('button', { name: /replace statement for barclays/i }).click()
+  await page.getByLabel('Statement file').setInputFiles(new URL('./fixtures/sample.docx', import.meta.url).pathname)
+  await page.locator('#statement-date').click()
+  await page.locator(`[data-day="${today}"] button`).click()
+  await page.getByRole('button', { name: 'Save statement' }).click()
+  await page.getByTestId('account-Barclays').getByRole('button', { name: /view statement for barclays/i }).click()
+  await expect(page.getByTestId('word-preview')).toHaveAttribute('data-state', 'ready')
+  await expect(page.getByLabel(/preview of sample\.docx/i)).toContainText('Vanguard statement (sample)')
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+
   await page.getByRole('button', { name: 'Add provider' }).first().click()
   await page.getByText('Monzo', { exact: true }).click()
+  await page.getByLabel('Category for Monzo').selectOption('Bank')
+  await expect(page.getByLabel('Category for Monzo')).toHaveValue('Bank')
+  const scrollHeight = await page.getByRole('dialog').evaluate(el => el.scrollHeight)
+  expect(scrollHeight).toBeLessThan(2000)
   await page.getByRole('button', { name: 'Add 1 provider' }).click()
   await expect(page.getByTestId('ready-count')).toHaveText('4 of 5 ready')
   await expect(submit).toHaveAttribute('aria-disabled', 'true')
 
   await page.getByRole('button', { name: 'Remove Monzo' }).click()
+  await page.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(page.getByTestId('ready-count')).toHaveText('4 of 4 ready')
+
+  await page.getByRole('button', { name: 'Add provider' }).first().click()
+  await page.getByRole('button', { name: /^other/i }).click()
+  await page.getByLabel('Provider or institution name').fill('Hartley Family Trust')
+  await page.getByRole('button', { name: 'Add to list' }).click()
+  await page.getByLabel('Category for Hartley Family Trust').selectOption('Investments')
+  await page.getByRole('button', { name: 'Add 1 provider' }).click()
+  await expect(page.getByTestId('account-Hartley Family Trust')).toContainText('Missing')
+  await expect(page.getByTestId('group-added-by-you').getByTestId('account-Hartley Family Trust')).toContainText('Investments · no statement supplied')
+  await expect(page.getByTestId('ready-count')).toHaveText('4 of 5 ready')
+  await page.getByRole('button', { name: 'Remove Hartley Family Trust' }).click()
   await page.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(page.getByTestId('ready-count')).toHaveText('4 of 4 ready')
 
