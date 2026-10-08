@@ -153,7 +153,7 @@ I left it out on purpose. The brief is about three statuses and one submit rule,
 
 ## 8. AI-assisted development and verification
 
-I used **Claude Code** (an AI coding tool I ran from the command line) as an implementation partner, mostly to set up the projects, write the screen and backend code, generate tests and draft the documentation. I made the decisions and it carried them out.
+I used **Claude Code CLI**  as an implementation partner, mostly to set up the projects, write the screen and backend code, generate tests and draft the documentation. I made the decisions and it carried them out.
 
 **How I worked.** I described the behaviour and the rules first, had the AI build against them, then tried the result in the running app and corrected it. It was a back-and-forth, not one request that produced the whole app.
 
