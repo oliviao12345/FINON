@@ -41,22 +41,24 @@ There are **60 backend**, **99 frontend** and **3 real-browser** tests, covering
 ## 5. Trade-offs and limitations
 
 - **Short-term memory (H2) instead of a saved database.** Nothing to install and every demo starts the same, but everything, including uploaded files, is lost when the backend restarts or the free host sleeps. A scheduled check pings the backend every 10 minutes to keep it awake, and the screen says so if the first load is slow.
-- **I went beyond the brief.** It asked for a name and a date in about two hours. I knowingly built file storage, previews, categories with drag and drop, a custom calendar and smart search, because the product is only convincing if a client can see and trust what they uploaded. A strict two-hour version would cut those and keep backend-owned readiness, the three statuses, duplicate protection and the tests.
+- **I went beyond the brief.** It asked for a name and a date in about two hours. I knowingly built file storage, previews, categories with drag and drop, a custom calendar and smart search, because the product is only convincing if a client can see and trust what they uploaded. A strict two-hour version would keep only backend-owned readiness, the three statuses, duplicate protection and the tests.
 - **The provider list is a reviewed file**, not a live feed: no free service lists everyday consumer providers.
 - **Word files are drawn in the browser**, so private documents never leave the app; old `.doc` files download.
 - **Java, not Kotlin.** The brief allowed either; the design translates directly.
-- **Visitors are isolated, but there is still no sign-in.** Each browser makes a random session id and sends it with every request, and the backend only ever returns data for that id. Every new visitor gets the same four fixed sample providers, built fresh and never copied from anyone else, and idle sessions are deleted after two hours. The id is a private key, not a login: anyone who obtained it could see that session's data. Files cannot be opened by link; the page fetches them with the id.
+- **Visitors are isolated, but there is no sign-in.** The session id (see section 6) is a private key, not a login: anyone who obtained it could see that session's data, and idle sessions are deleted after two hours.
 - **Not safe for real documents.** Sign-in was out of scope and files are stored, so **do not upload real financial documents to the demo**. My checks do not scan for malware or prove a file is a genuine statement.
 
 ## 6. AI-assisted development
 
 I used **Claude Code CLI** as an implementation partner to set up the projects, write code, generate tests and draft documentation. I made the decisions and it carried them out: I described the behaviour first, then tried each result in the running app and sent it back for changes.
 
-For the design, I defined the user as a high-net-worth client expecting a premium, professional, trustworthy experience, and gave the AI references from fintech products including Investa and Finary for typography, colour, layout and feel (not their trading screens). I judged the output by how well it showed progress and what was outstanding, not just how attractive it looked.
+For the design, I defined the user as a high-net-worth client expecting a premium, professional, trustworthy experience, and gave the AI references from fintech products including Investa and Finary for typography, colour, layout and feel (not their trading screens). I judged it by how well it showed progress and what was outstanding, not just how it looked.
 
-Review changed two things. The first file check refused any file whose contents did not match its ending; I pushed back, since a genuine renamed file is fine and a *broken* one is not, so it now looks inside the file. The first version also quietly assumed a category; I asked for the suggestion to be visible and editable.
+My review changed two things. The first file check refused any file whose contents did not match its ending; I pushed back, since a renamed genuine file is fine and a *broken* one is not, so it now looks inside the file. The first version also quietly assumed a category; I asked for it to be visible and editable.
 
-Most tests were written with AI help, so I treated them as a safety net, not proof, and read them against my rules.
+**A challenge I found by testing.** In a manual test on the live site, using my desktop and phone together, I noticed that everyone with the link saw the same data and could open every uploaded file. I directed the fix: each browser creates a random session id and sends it as an `X-Session-Id` header, the backend scopes every account and file to it (another visitor's account or file returns 404), and every new session starts from the same four fixed sample providers. Files are fetched with the header, since a plain link cannot carry it. The first deploy then failed because the host's health check called `/api/accounts`, which now rightly refuses sessionless requests, so I added a session-free `/api/health`. I verified it with isolation tests and by repeating the two-device test live.
+
+Most tests were AI-written, so I treated them as a safety net, not proof, and read them against my rules.
 
 ## 7. Future improvements
 
