@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { WordPreview } from '@/components/WordPreview'
 import { ageLabel, currentUntil, parseIso, toIso } from '@/lib/dates'
 import { fileKind, formatDate, mimeLabel, todayIso } from '@/lib/format'
-import { statementFileUrl } from '@/lib/api'
+import { useStatementFile } from '@/hooks/useStatementFile'
 import type { Account } from '@/lib/types'
 
 interface Props {
@@ -15,6 +15,8 @@ interface Props {
   onClose: () => void
   onReplace: (a: Account) => void
 }
+
+const hasFileProblem = (status: string) => status === 'failed'
 
 function ImagePreview({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false)
@@ -52,7 +54,8 @@ function Body({ account, onReplace }: { account: Account; onReplace: (a: Account
   const isImage = kind.endsWith('image')
   const isPdf = kind === 'PDF document'
   const isDocx = (statement.contentType ?? '').includes('wordprocessingml')
-  const url = statementFileUrl(account.id, statement.storedAt)
+  const file = useStatementFile(account.id, statement.storedAt, statement.hasFile)
+  const url = file.status === 'ready' ? file.url : null
 
   return (
     <>
@@ -77,7 +80,11 @@ function Body({ account, onReplace }: { account: Account; onReplace: (a: Account
           <div className="flex items-center justify-between gap-4">
             <dt className="text-muted-foreground">Your file</dt>
             <dd className="flex flex-wrap items-center justify-end gap-2">
-              {(isImage || isPdf) && (
+              {url === null ? (
+                <span className="text-xs text-muted-foreground" role="status">
+                  {file.status === 'failed' ? "Couldn't load your file" : 'Loading your file…'}
+                </span>
+              ) : (isImage || isPdf) && (
                 <a
                   href={url}
                   target="_blank"
@@ -88,14 +95,16 @@ function Body({ account, onReplace }: { account: Account; onReplace: (a: Account
                   Open file
                 </a>
               )}
-              <a
-                href={url}
-                download={statement.filename}
-                className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5')}
-              >
-                <Download className="size-3.5" aria-hidden />
-                Download
-              </a>
+              {url !== null && (
+                <a
+                  href={url}
+                  download={statement.filename}
+                  className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5')}
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  Download
+                </a>
+              )}
             </dd>
           </div>
         )}
@@ -118,15 +127,20 @@ function Body({ account, onReplace }: { account: Account; onReplace: (a: Account
 
       {statement.hasFile ? (
         <div className="grid gap-3" data-testid="view-preview">
-          {isImage && <ImagePreview src={url} alt={`Your uploaded statement: ${statement.filename}`} />}
-          {isPdf && (
+          {isImage && url !== null && <ImagePreview src={url} alt={`Your uploaded statement: ${statement.filename}`} />}
+          {isPdf && url !== null && (
             <iframe
               src={`${url}#navpanes=0&toolbar=0&view=FitH`}
               title={`Your uploaded statement: ${statement.filename}`}
               className="h-[28rem] w-full rounded-xl border border-border bg-background"
             />
           )}
-          {isDocx && <WordPreview url={url} name={statement.filename} />}
+          {isDocx && file.status === 'ready' && <WordPreview blob={file.blob} name={statement.filename} />}
+          {hasFileProblem(file.status) && (
+            <p role="alert" className="rounded-lg bg-bad/10 px-3 py-2 text-xs text-bad">
+              We couldn't load your file just now. Close this and open it again.
+            </p>
+          )}
           {!isImage && !isPdf && !isDocx && (
             <p className="text-xs text-muted-foreground">
               Older Word (.doc) files can't be previewed here. Download it to open it.

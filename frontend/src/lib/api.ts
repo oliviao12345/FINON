@@ -1,3 +1,4 @@
+import { sessionId } from './session'
 import type { Account, AccountsResponse, CatalogueProvider, Choice, Issue, SubmitResult } from './types'
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -21,7 +22,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const isForm = init?.body instanceof FormData
     res = await fetch(`${BASE}/api${path}`, {
       ...init,
-      headers: isForm ? init?.headers : { 'Content-Type': 'application/json', ...init?.headers },
+      headers: {
+        ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+        'X-Session-Id': sessionId(),
+        ...init?.headers,
+      },
     })
   } catch {
     throw new ApiError(0, 'NETWORK', "We couldn't reach FINON. Check your connection and try again.")
@@ -41,8 +46,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
-export const statementFileUrl = (id: number, storedAt: number | null) =>
-  `${BASE}/api/accounts/${id}/statement/file${storedAt ? `?v=${storedAt}` : ''}`
+/** Fetches a stored file. It needs the visitor's session, so it cannot be a plain link or image address. */
+export async function fetchStatementFile(id: number, storedAt: number | null): Promise<Blob> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/api/accounts/${id}/statement/file${storedAt ? `?v=${storedAt}` : ''}`, {
+      headers: { 'X-Session-Id': sessionId() },
+    })
+  } catch {
+    throw new ApiError(0, 'NETWORK', "We couldn't reach FINON. Check your connection and try again.")
+  }
+  if (!res.ok) throw new ApiError(res.status, 'NO_FILE', "We couldn't load that file.")
+  return res.blob()
+}
 
 export const api = {
   providers: () => request<CatalogueProvider[]>('/providers'),

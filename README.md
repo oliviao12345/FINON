@@ -160,6 +160,8 @@ sequenceDiagram
 | PUT | `/api/accounts/{id}/category` | Change a provider's category |
 | POST | `/api/submit` | Validate everything; 200, or 422 listing what is left |
 
+Every request must carry an `X-Session-Id` header (a random id the browser generates). Data is scoped to it, so one visitor can never read, change or open another's providers or files; a missing or malformed id gets a 400.
+
 The reasoning behind the rules is written up in [NOTES.md](NOTES.md).
 
 ## Run it locally
@@ -174,7 +176,7 @@ cd backend && mvn spring-boot:run
 cd frontend && npm install && npm run dev
 ```
 
-Open http://localhost:5173. The API seeds four demo providers each time it starts: Barclays and Fidelity (current), HSBC (missing) and Vanguard (outdated).
+Open http://localhost:5173. Every visitor gets a private session that starts with four demo providers: Barclays and Fidelity (current), HSBC (missing) and Vanguard (outdated). What one visitor adds is never visible to another, and idle sessions are deleted after two hours.
 
 ## Tests
 

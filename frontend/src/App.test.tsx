@@ -778,35 +778,37 @@ describe('viewing what was uploaded', () => {
   }
 
   async function openView(a: ReturnType<typeof withFile>) {
-    mockApi({ 'GET /accounts': () => ({ json: overview([a]) }) })
+    mockApi({
+      'GET /accounts': () => ({ json: overview([a]) }),
+      'GET /accounts/1/statement/file?v=1790000000000': () => ({ json: 'bytes' }),
+    })
     renderApp()
     await screen.findByTestId('ready-count')
     await userEvent.click(screen.getByRole('button', { name: new RegExp(`view statement for ${a.provider.name}`, 'i') }))
     return await screen.findByRole('dialog')
   }
 
-  it('shows the recorded details and embeds the actual PDF', async () => {
+  it('shows the recorded details and embeds the actual PDF, loaded for this visitor', async () => {
     const dialog = await openView(withFile('Barclays', 'jan.pdf'))
     expect(within(dialog).getByTestId('view-filename')).toHaveTextContent('jan.pdf')
     expect(within(dialog).getByText('PDF document')).toBeInTheDocument()
     expect(within(dialog).getByText('20 Sept 2026')).toBeInTheDocument()
     expect(within(dialog).getByText('Valid until')).toBeInTheDocument()
     expect(within(dialog).getByTestId('view-until')).toBeInTheDocument()
-    const frame = within(dialog).getByTitle(/your uploaded statement: jan\.pdf/i)
-    expect(frame).toHaveAttribute('src', expect.stringContaining('/api/accounts/1/statement/file?v=1790000000000'))
-    expect(frame.getAttribute('src')).toContain('#navpanes=0&toolbar=0&view=FitH')
-    expect(within(dialog).getByRole('link', { name: /open file/i })).toHaveAttribute('target', '_blank')
+    const frame = await within(dialog).findByTitle(/your uploaded statement: jan\.pdf/i)
+    expect(frame.getAttribute('src')).toMatch(/^blob:preview#navpanes=0&toolbar=0&view=FitH$/)
+    expect(await within(dialog).findByRole('link', { name: /open file/i })).toHaveAttribute('target', '_blank')
     expect(within(dialog).getByRole('link', { name: /download/i })).toHaveAttribute('download', 'jan.pdf')
   })
 
   it('shows an image statement as a picture', async () => {
     const dialog = await openView(withFile('Barclays', 'scan.png'))
-    expect(within(dialog).getByRole('img', { name: /your uploaded statement: scan\.png/i })).toHaveAttribute('src', expect.stringContaining('/statement/file'))
+    expect(await within(dialog).findByRole('img', { name: /your uploaded statement: scan\.png/i })).toHaveAttribute('src', 'blob:preview')
   })
 
   it('explains when an image cannot be previewed, for example if the file was renamed', async () => {
     const dialog = await openView(withFile('Barclays', 'renamed.jpeg'))
-    fireEvent.error(within(dialog).getByRole('img'))
+    fireEvent.error(await within(dialog).findByRole('img'))
     expect(await within(dialog).findByTestId('view-preview-failed')).toHaveTextContent(/can't be previewed here/i)
     expect(within(dialog).getByRole('link', { name: /open file/i })).toBeInTheDocument()
   })
@@ -815,7 +817,7 @@ describe('viewing what was uploaded', () => {
     const dialog = await openView(withFile('Barclays', 'STATEMENT.jpeg', true, MIME.docx))
     expect(within(dialog).getByText('Word document')).toBeInTheDocument()
     expect(within(dialog).queryByRole('img')).not.toBeInTheDocument()
-    expect(within(dialog).getByRole('link', { name: /download/i })).toBeInTheDocument()
+    expect(await within(dialog).findByRole('link', { name: /download/i })).toBeInTheDocument()
   })
 
   const FILE_ROUTE = 'GET /accounts/1/statement/file?v=1790000000000'
@@ -1048,6 +1050,44 @@ describe('statement date picker', () => {
     for (let i = 0; i < 3; i++) await userEvent.click(screen.getByRole('button', { name: /previous month/i }))
     await userEvent.click(day('2026-07-08'))
     expect(screen.getByTestId('date-validity')).toHaveAttribute('data-validity', 'current')
+  })
+})
+
+describe('visitor privacy', () => {
+  it('sends the same private session id with every request, including loading a file', async () => {
+    const api = mockApi({
+      'GET /accounts': () => ({ json: overview([{ ...account(1, 'Barclays', 'UPLOADED') }]) }),
+      'GET /providers': () => ({ json: [provider(5, 'Monzo')] }),
+      'GET /accounts/1/statement/file?v=1790000000000': () => ({ json: 'bytes' }),
+    })
+    renderApp()
+    await screen.findByTestId('ready-count')
+    await userEvent.click(screen.getAllByRole('button', { name: /add provider/i })[0])
+    await screen.findByRole('checkbox', { name: 'Monzo' })
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: /view statement for barclays/i }))
+    await screen.findByRole('link', { name: /download/i })
+
+    const ids = api.calls.map(c => c.headers['X-Session-Id'])
+    expect(api.calls.length).toBeGreaterThanOrEqual(3)
+    expect(ids.every(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))).toBe(true)
+    expect(new Set(ids).size).toBe(1)
+    expect(window.localStorage.getItem('finon.session')).toBe(ids[0])
+  })
+
+  it('never puts the session id in an address the page can show or share', async () => {
+    mockApi({
+      'GET /accounts': () => ({ json: overview([{ ...account(1, 'Barclays', 'UPLOADED') }]) }),
+      'GET /accounts/1/statement/file?v=1790000000000': () => ({ json: 'bytes' }),
+    })
+    renderApp()
+    await screen.findByTestId('ready-count')
+    await userEvent.click(screen.getByRole('button', { name: /view statement for barclays/i }))
+    const dialog = await screen.findByRole('dialog')
+    const frame = await within(dialog).findByTitle(/your uploaded statement/i)
+    const id = window.localStorage.getItem('finon.session') ?? 'missing'
+    expect(frame.getAttribute('src')).not.toContain(id)
+    expect(document.body.innerHTML).not.toContain(id)
   })
 })
 

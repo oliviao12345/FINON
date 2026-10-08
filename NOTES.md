@@ -6,7 +6,7 @@ The README covers running FINON and shows the screens. This file is my reasoning
 
 The screen has one job: answer **"is the client ready to submit?"** So the key decision is where that answer is worked out. **The backend decides.** It works out each statement's status and whether the client can submit, on every request, and the frontend only shows the answer. I rejected calculating it on the screen because the same rule in two places drifts apart. The backend also **checks again on Submit**, because the screen is only a guide and anyone can call the backend directly.
 
-Nothing is saved that can be worked out: a stored "Uploaded" status would still say so the day after it expired. Only providers, accounts, statement dates and files are saved. Screen-only details (filters, search, open pop-ups) stay in the frontend, and TanStack Query keeps a temporary copy of backend data, re-fetched after every change.
+Nothing is saved that can be worked out: a stored "Uploaded" status would still say so the day after it expired. Only providers, accounts, statement dates and files are saved, and each belongs to one visitor's session (below). Screen-only details (filters, search, open pop-ups) stay in the frontend, and TanStack Query keeps a temporary copy of backend data, re-fetched after every change.
 
 It is one small Spring Boot backend (Java 21), not several services, with React and TypeScript in front, hosted on Vercel and Render. Every error has one shape (a code, a client-friendly message and, for a refused submit, the providers at fault), and 422 means "valid request, not ready". I built the rules and tests first and the screen second.
 
@@ -36,7 +36,7 @@ It is one small Spring Boot backend (Java 21), not several services, with React 
 
 ## 4. Testing strategy and CI
 
-There are **48 backend**, **94 frontend** and **2 real-browser** tests, covering the boundary day, duplicates, refused submits (including direct API calls), file checks, and one full journey from refused to successful submit. GitHub runs them on every pull request and merge to `main`. The deploy step needs them all to pass, Vercel's deploy-on-push is off for `main`, and Render only updates after the checks succeed. Since the checks were set up, every change has gone through a pull request; the first two commits went straight to `main`, and branch protection is not yet on. Results: https://github.com/oliviao12345/FINON/actions.
+There are **59 backend**, **99 frontend** and **3 real-browser** tests, covering the boundary day, duplicates, refused submits (including direct API calls), file checks, visitor privacy, and one full journey from refused to successful submit. GitHub runs them on every pull request and merge to `main`. The deploy step needs them all to pass, Vercel's deploy-on-push is off for `main`, and Render only updates after the checks succeed. Since the checks were set up, every change has gone through a pull request; the first two commits went straight to `main`, and branch protection is not yet on. Results: https://github.com/oliviao12345/FINON/actions.
 
 ## 5. Trade-offs and limitations
 
@@ -45,7 +45,8 @@ There are **48 backend**, **94 frontend** and **2 real-browser** tests, covering
 - **The provider list is a reviewed file**, not a live feed: no free service lists everyday consumer providers.
 - **Word files are drawn in the browser**, so private documents never leave the app; old `.doc` files download.
 - **Java, not Kotlin.** The brief allowed either; the design translates directly.
-- **Not safe for real documents.** There is no sign-in and one client (both out of scope), yet files are stored, so **do not upload real financial documents to the demo**. My checks do not scan for malware or prove a file is a genuine statement.
+- **Visitors are isolated, but there is still no sign-in.** Each browser makes a random session id and sends it with every request, and the backend only ever returns data for that id. Every new visitor gets the same four fixed sample providers, built fresh and never copied from anyone else, and idle sessions are deleted after two hours. The id is a private key, not a login: anyone who obtained it could see that session's data. Files cannot be opened by link; the page fetches them with the id.
+- **Not safe for real documents.** Sign-in was out of scope and files are stored, so **do not upload real financial documents to the demo**. My checks do not scan for malware or prove a file is a genuine statement.
 
 ## 6. AI-assisted development
 

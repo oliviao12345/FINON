@@ -9,10 +9,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const now = new Date()
 const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 
-test('complete the pack and submit', async ({ page, request }) => {
-  const before = await (await request.get(`http://localhost:${process.env.E2E_API_PORT ?? '8080'}/api/accounts`)).json()
-  test.skip(before.readiness.total !== 4, 'needs the freshly seeded demo data')
-
+test('complete the pack and submit', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('ready-count')).toHaveText('2 of 4 ready')
 
@@ -45,10 +42,14 @@ test('complete the pack and submit', async ({ page, request }) => {
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByTestId('view-filename')).toHaveText('hsbc_sep.pdf')
   await expect(dialog.getByTitle(/your uploaded statement/i)).toBeVisible()
-  const served = await page.request.get(await dialog.getByTitle(/your uploaded statement/i).getAttribute('src') as string)
-  expect(served.status()).toBe(200)
-  expect(served.headers()['content-type']).toBe('application/pdf')
-  expect((await served.body()).toString()).toContain('Sample statement')
+  const src = (await dialog.getByTitle(/your uploaded statement/i).getAttribute('src')) as string
+  expect(src.startsWith('blob:')).toBe(true)
+  const served = await page.evaluate(async address => {
+    const blob = await (await fetch(address)).blob()
+    return { type: blob.type, text: await blob.text() }
+  }, src.split('#')[0])
+  expect(served.type).toBe('application/pdf')
+  expect(served.text).toContain('Sample statement')
   await dialog.getByRole('button', { name: 'Close' }).first().click()
 
   await expect(page.getByRole('dialog')).toBeHidden()

@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 
 type State = 'loading' | 'ready' | 'failed'
 
-export function WordPreview({ url, name }: { url: string; name: string }) {
+export function WordPreview({ blob, name }: { blob: Blob; name: string }) {
   const host = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<State>('loading')
 
@@ -12,9 +12,7 @@ export function WordPreview({ url, name }: { url: string; name: string }) {
     setState('loading')
     ;(async () => {
       try {
-        const [{ renderAsync }, res] = await Promise.all([import('docx-preview'), fetch(url)])
-        if (!res.ok) throw new Error('fetch failed')
-        const data = await res.arrayBuffer()
+        const [{ renderAsync }, data] = await Promise.all([import('docx-preview'), blob.arrayBuffer()])
         if (cancelled || !host.current) return
         host.current.innerHTML = ''
         await renderAsync(data, host.current, undefined, {
@@ -32,7 +30,7 @@ export function WordPreview({ url, name }: { url: string; name: string }) {
     return () => {
       cancelled = true
     }
-  }, [url])
+  }, [blob])
 
   return (
     <div className="grid gap-2" data-testid="word-preview" data-state={state}>
