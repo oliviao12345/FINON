@@ -145,6 +145,10 @@ I tested the things I most wanted to protect, as close to the code as possible, 
 
 **What I chose not to build:** sign-in, more than one client, a permanent database, a history of submissions, and a live provider feed. Each was either outside the brief or needs services the exercise does not have.
 
+**A feature I would add next: warn before a statement runs out.** Today FINON only says a statement is out of date after the three months are up. A friendlier version would warn the client *beforehand*. If a statement that is being uploaded, or one already on file, will stop counting within 14 days, the card would show a small note (not a pop-up), for example: "This statement stops counting on 21 October. You can still use it, but a newer one will last longer." It would never block an upload, only suggest a better one.
+
+I left it out on purpose. The brief is about three statuses and one submit rule, and this adds a fourth, in-between state ("about to run out") that needs its own rule, wording, tests and a decision on whether it should affect "ready". It would also be easy to overdo. I like it because it moves FINON from telling clients about problems to helping them avoid them, and the backend already works out each statement's "valid until" date, so it is a small step from here.
+
 **With more time:** a permanent database and proper file storage; a saved record of each submission, made so pressing Submit twice cannot cause problems; a regular check of the provider list against the official Bank of England, PRA and FCA registers; limits on how often the backend can be called, plus better logging; and more browser tests (on a phone-sized screen and with the keyboard only) along with automatic accessibility checks.
 
 ## 8. AI-assisted development and verification
