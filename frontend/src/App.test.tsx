@@ -794,6 +794,7 @@ describe('viewing what was uploaded', () => {
     expect(within(dialog).getByTestId('view-until')).toBeInTheDocument()
     const frame = within(dialog).getByTitle(/your uploaded statement: jan\.pdf/i)
     expect(frame).toHaveAttribute('src', expect.stringContaining('/api/accounts/1/statement/file?v=1790000000000'))
+    expect(frame.getAttribute('src')).toContain('#navpanes=0&toolbar=0&view=FitH')
     expect(within(dialog).getByRole('link', { name: /open file/i })).toHaveAttribute('target', '_blank')
     expect(within(dialog).getByRole('link', { name: /download/i })).toHaveAttribute('download', 'jan.pdf')
   })
