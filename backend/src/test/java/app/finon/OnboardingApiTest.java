@@ -34,10 +34,21 @@ class OnboardingApiTest {
         }
     }
 
+    static final String SESSION = "11111111-1111-4111-8111-111111111111";
+
+    @TestConfiguration
+    static class DefaultSession {
+        @Bean
+        org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer asVisitor() {
+            return builder -> builder.defaultRequest(get("/").header("X-Session-Id", SESSION));
+        }
+    }
+
     @Autowired MockMvc mvc;
     @Autowired ProviderRepository providers;
     @Autowired ClientAccountRepository accounts;
     @Autowired StatementFileRepository files;
+    @Autowired ClientSessionRepository sessions;
 
     Long barclays;
     Long hsbc;
@@ -46,6 +57,7 @@ class OnboardingApiTest {
     void reset() {
         accounts.deleteAll();
         files.deleteAll();
+        sessions.deleteAll();
         barclays = providers.findAll().stream()
                 .filter(p -> p.getName().equals("Barclays")).findFirst().orElseThrow().getId();
         hsbc = providers.findAll().stream()

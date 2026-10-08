@@ -1,6 +1,7 @@
 package app.finon.web;
 
 import app.finon.service.AccountService;
+import app.finon.service.SessionService;
 import app.finon.web.Dtos.*;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -29,50 +30,54 @@ public class AccountController {
     }
 
     @GetMapping("/providers")
-    public List<ProviderDto> providers() {
-        return service.availableProviders();
+    public List<ProviderDto> providers(@RequestHeader(SessionService.HEADER) String session) {
+        return service.availableProviders(session);
     }
 
     @GetMapping("/accounts")
-    public AccountsResponse accounts() {
-        return service.overview();
+    public AccountsResponse accounts(@RequestHeader(SessionService.HEADER) String session) {
+        return service.overview(session);
     }
 
     @PostMapping("/accounts")
-    public ResponseEntity<AccountsResponse> add(@Valid @RequestBody AddAccountsRequest body) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.add(body.providerIds(), body.customNames(), body.choices()));
+    public ResponseEntity<AccountsResponse> add(@RequestHeader(SessionService.HEADER) String session,
+                                                @Valid @RequestBody AddAccountsRequest body) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.add(session, body.providerIds(), body.customNames(), body.choices()));
     }
 
     @PutMapping(path = "/accounts/{id}/category", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AccountDto category(@PathVariable Long id, @Valid @RequestBody CategoryRequest body) {
-        return service.setCategory(id, body.category());
+    public AccountDto category(@RequestHeader(SessionService.HEADER) String session, @PathVariable Long id,
+                               @Valid @RequestBody CategoryRequest body) {
+        return service.setCategory(session, id, body.category());
     }
 
     @DeleteMapping("/accounts/{id}")
-    public ResponseEntity<Void> remove(@PathVariable Long id) {
-        service.remove(id);
+    public ResponseEntity<Void> remove(@RequestHeader(SessionService.HEADER) String session, @PathVariable Long id) {
+        service.remove(session, id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping(path = "/accounts/{id}/statement", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public AccountDto statement(@PathVariable Long id, @Valid @RequestBody StatementRequest body) {
-        return service.setStatement(id, body.filename(), body.statementDate());
+    public AccountDto statement(@RequestHeader(SessionService.HEADER) String session, @PathVariable Long id,
+                                @Valid @RequestBody StatementRequest body) {
+        return service.setStatement(session, id, body.filename(), body.statementDate());
     }
 
     @PutMapping(path = "/accounts/{id}/statement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public AccountDto statementFile(
+            @RequestHeader(SessionService.HEADER) String session,
             @PathVariable Long id,
             @RequestPart("file") MultipartFile file,
             @RequestParam("statementDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate statementDate)
             throws IOException {
         String original = file.getOriginalFilename();
         String name = original == null ? "" : original.replaceAll(".*[\\\\/]", "");
-        return service.setStatement(id, name, statementDate, file.getBytes());
+        return service.setStatement(session, id, name, statementDate, file.getBytes());
     }
 
     @GetMapping("/accounts/{id}/statement/file")
-    public ResponseEntity<byte[]> file(@PathVariable Long id) {
-        StoredFile stored = service.fileFor(id);
+    public ResponseEntity<byte[]> file(@RequestHeader(SessionService.HEADER) String session, @PathVariable Long id) {
+        StoredFile stored = service.fileFor(session, id);
         boolean inline = stored.contentType().equals("application/pdf") || stored.contentType().startsWith("image/");
         ContentDisposition disposition = (inline ? ContentDisposition.inline() : ContentDisposition.attachment())
                 .filename(stored.filename(), StandardCharsets.UTF_8).build();
@@ -85,7 +90,7 @@ public class AccountController {
     }
 
     @PostMapping("/submit")
-    public SubmitResponse submit() {
-        return service.submit();
+    public SubmitResponse submit(@RequestHeader(SessionService.HEADER) String session) {
+        return service.submit(session);
     }
 }

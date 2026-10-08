@@ -19,6 +19,10 @@ spring:
     default-property-inclusion: always
 
 finon:
+  sessions:
+    idle-minutes: 120
+    max: 200
+    max-stored-kb: 25600
   cors:
     allowed-origins: ${FINON_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   seed:
