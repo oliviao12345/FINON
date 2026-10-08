@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: finon-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/accounts
+    autoDeploy: true
+    envVars:
+      - key: FINON_CORS_ORIGINS
+        sync: false
