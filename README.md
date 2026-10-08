@@ -5,7 +5,7 @@
 **Live demo:** https://finon-green.vercel.app
 **API:** https://finon-api.onrender.com (the free host sleeps when idle, so the first load after a quiet spell can take up to a minute; data resets whenever it restarts)
 
-![FINON overview](docs/screenshots/01-overview.png)
+<p align="center"><img src="docs/screenshots/01-overview.png" alt="FINON overview" width="560" height="712"></p>
 
 ## What it does
 
@@ -20,18 +20,18 @@
 
 | | |
 |---|---|
-| ![Add providers](docs/screenshots/02-add-providers.png) | ![Statement date](docs/screenshots/03-statement-date.png) |
+| <img src="docs/screenshots/02-add-providers.png" alt="Add providers" width="330" height="529"> | <img src="docs/screenshots/03-statement-date.png" alt="Statement date" width="330" height="688"> |
 | **Adding providers.** Search with forgiving matching ("hl" finds Hargreaves Lansdown), tick several, type in anything missing, and check each category (pre-filled, editable) before adding. | **Choosing the statement date.** The calendar knows today's date: older dates turn red and the message says plainly whether the statement counts. |
-| ![Statement viewer](docs/screenshots/04-statement-viewer.png) | ![Drag and drop](docs/screenshots/05-drag-and-drop.png) |
+| <img src="docs/screenshots/04-statement-viewer.png" alt="Statement viewer" width="330" height="435"> | <img src="docs/screenshots/05-drag-and-drop.png" alt="Drag and drop" width="330" height="419"> |
 | **Viewing what was uploaded.** Details, Open and Download, and an in-app preview of PDFs, images and Word documents. | **Organising by category.** Drag a card onto any category (empty ones appear as drop targets); the dropdown on each card does the same. |
 
 ### From "what is left?" to done in one tap
 
-![Progress bar shortcuts](docs/screenshots/10-progress-shortcuts.png)
+<p align="center"><img src="docs/screenshots/10-progress-shortcuts.png" alt="Progress bar shortcuts" width="560" height="208"></p>
 
 Each bar segment is a button. Hovering or tabbing to one shows the provider, its status and what a tap will do ("Add statement?"); tapping it scrolls to that provider and opens the Add or Replace dialog straight away. The names in the sentence beneath (dotted underline) do the same, and "Submit unavailable - 5 providers need attention" is itself a shortcut that filters the list to what is left.
 
-<p align="center"><img src="docs/screenshots/06-mobile.png" alt="FINON on a phone" width="320"></p>
+<p align="center"><img src="docs/screenshots/06-mobile.png" alt="FINON on a phone" width="240" height="923"></p>
 
 On a phone the cards stack, the filter pills scroll sideways and every control stays thumb-sized.
 

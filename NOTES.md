@@ -1,108 +1,157 @@
 # Notes
 
-How FINON is put together, why I made each call, what I would do with more time, and how I used AI. The README covers running it and shows the screens; this file is the reasoning.
+The README covers running FINON and shows the screens and diagrams. This file is the reasoning: where each piece of logic lives, the rules I enforce, what I chose not to build, and how I used AI. It is meant to be read in five minutes.
 
-## 1. The approach in one paragraph
+1. [Engineering approach and key decisions](#1-engineering-approach-and-key-decisions)
+2. [State modelling and ownership](#2-state-modelling-and-ownership)
+3. [Business rules and validation](#3-business-rules-and-validation)
+4. [API design and error handling](#4-api-design-and-error-handling)
+5. [UX decisions and accessibility](#5-ux-decisions-and-accessibility)
+6. [Testing strategy and CI](#6-testing-strategy-and-ci)
+7. [Trade-offs, limitations and next steps](#7-trade-offs-limitations-and-next-steps)
+8. [AI-assisted development and verification](#8-ai-assisted-development-and-verification)
 
-The screen has one question to answer: **"am I ready to submit?"** So the server owns every rule and returns a ready count and a clear list of what is wrong; the React app renders that and never re-derives it. I built a thin vertical slice first (add providers, add statements, submit, with validation enforced server-side), proved it with tests, then layered the experience on top: a calm, premium look suited to high-net-worth clients, helpful guidance on every row, and shortcuts that move the client from "what is left" to "done" in as few taps as possible.
+## 1. Engineering approach and key decisions
 
-## 2. Logic decisions
+The screen exists to answer one question: **"am I ready to submit?"** Everything follows from where I decided that answer should be calculated.
 
-These are the business rules and the reasoning behind them.
+| Decision | Alternative I considered | Why I chose this |
+|---|---|---|
+| The **server** works out statement status and submission readiness. | Compute readiness in React from the statement dates. | One source of truth. Duplicating a business rule in two languages is how the screen and the API end up disagreeing. |
+| **Submit is re-validated on the server.** | Trust the disabled button. | UI validation is guidance, not enforcement. Someone calling the API directly must not be able to submit an incomplete set. |
+| Keep a thin, modular **single service**. | Microservices, or a separate readiness service. | The brief has one bounded context. More moving parts would add cost without meeting a requirement. |
+| **Build the rules first, then the experience.** | Start with the screen. | I proved add, upload and submit end to end with tests, then layered the interface on top, so the polish never outran the logic. |
 
-1. **A statement's status is derived, never stored.** Missing means no statement; Outdated means the statement date is before *today minus three calendar months*; anything else is Uploaded. Because it is calculated each time, time passing can never leave a stale status in the database.
+## 2. State modelling and ownership
 
-![The overview: ready count, progress bar and a status on every row](docs/screenshots/01-overview.png)
-2. **Three calendar months, not 90 days, and the boundary is inclusive.** Months differ in length, so the cutoff uses calendar-month arithmetic (31 May minus three months is 28 February, the way `java.time` does it). A statement dated *exactly* three months ago still counts. The clock is injected, so the boundary tests are deterministic.
-3. **The server owns readiness.** `GET /api/accounts` returns the rows plus `ready`, `total`, `canSubmit` and the list of issues. The UI shows exactly that. This is why the progress bar, the sentence under it, the Submit button and the server's own check can never disagree.
-4. **Submit is enforced on the server, not by a disabled button.** `POST /api/submit` recalculates everything and returns 422 with the providers at fault, so an incomplete set is refused even if someone calls the API directly. An empty list is also refused: with nothing declared there is nothing to advise on. This is a documented product decision, not a brief requirement.
+I separated what is **stored** from what is **derived**, and kept UI-only state out of both.
 
-![A premature submit: the server's reason, the providers at fault, and an explanatory notification](docs/screenshots/07-submit-refused.png)
-5. **The Submit button looks inactive but can still be pressed** (`aria-disabled`, not `disabled`). A premature attempt then shows the server's explanation and outlines the cards to fix, instead of leaving the client guessing why nothing happens.
-6. **Outdated dates can be chosen, future dates cannot.** An old statement is valid input that fails a business rule, so it is saved as Outdated and excluded from readiness; that also keeps all three required statuses demonstrable. A future date can never describe an issued statement, so it is invalid input (400). The calendar explains this before saving, but the server decides.
+| Kind | Examples | Owner | Why |
+|---|---|---|---|
+| **Persisted** | Provider catalogue, the client's accounts and chosen category, statement file name, date and the stored file | Backend database | This is the data the client actually supplied. |
+| **Derived** | Statement status (Missing, Uploaded, Outdated), the ready count, `canSubmit`, the list of issues | Backend, calculated on every read | Time passing changes the answer. Storing it would mean a statement could still read "Uploaded" the day after it expired. |
+| **Server state in the client** | The account list, the catalogue | TanStack Query (fetch, cache, refresh) | Gives loading, error and success handling for every request in one place. Every change invalidates the lists so the screen is always redrawn from the server. |
+| **UI-only state** | Selected filter, search text, open dialogs, the draft in a form | React local state | Nothing outside the screen needs it. |
 
-![The calendar: older dates in red, with a plain-words verdict before saving](docs/screenshots/03-statement-date.png)
-7. **No duplicate providers, under any disguise.** One name rule ignores case, accents, spacing, punctuation and "&" versus "and", so `HSBC`, `hsbc `, `H.S.B.C.` and `h s b c` are the same provider. It applies to catalogue picks, typed-in names, the client's current list, repeats within one request, and the catalogue itself (the app refuses to start if two catalogue entries collide). A duplicate request is rejected whole (409), never partially applied.
+**The alternative I rejected** was calculating readiness in React. It would have saved a field on the response but created two implementations of the same rule. As it stands the progress bar, the sentence beneath it, the Submit button and the server's own check cannot drift apart, because they all render one response.
 
-![Typing H.S.B.C. when HSBC is already on the list: refused, with a link to the existing entry](docs/screenshots/08-duplicate.png)
-8. **Providers typed in under "Other" are personal.** The name is stored only on that client's own account. It never touches the shared provider table, so it can never appear in anyone's pick-list, and it disappears when removed. A typed name that matches a catalogue entry resolves to the catalogue entry.
-9. **Categories are the client's, visible and editable.** Each account carries a category (Bank, Building society, Insurance, Investments, Pension, Property, Savings, Other, alphabetical with Other last). When adding, each dropdown is pre-filled with the suggestion so the client can see and change what will be saved. Typed-in providers start on Other. The list is grouped by category for the adviser, with typed-in providers in their own "Added by you" section.
+## 3. Business rules and validation
 
-![Categories pre-filled and editable in the Add dialog, with a searchable, removable selection](docs/screenshots/02-add-providers.png)
+### Statement status
 
-![Dragging a card onto another category; empty categories become drop targets](docs/screenshots/05-drag-and-drop.png)
-10. **Uploaded files are checked for being genuinely openable, not for their name.** The server works out what a file really is from its contents, then confirms it is intact: PDFs must load as documents, pictures must decode, Word packages must be complete. Damaged or cut-off files are refused with a clear message and nothing is saved. A genuine file with the wrong extension (a real Word document called `.jpeg`) is accepted and treated as what it is, because refusing it only adds friction; a password-protected PDF is accepted because it is intact. Allowed types are PDF, Word, JPG and PNG, up to 5 MB.
+| Scenario | Result | Reason |
+|---|---|---|
+| No statement | **Missing** | No evidence supplied. |
+| Dated within the last three calendar months | **Uploaded** | Meets the freshness rule. |
+| Dated exactly three calendar months ago | **Uploaded** | The boundary is inclusive. |
+| Older than three calendar months | **Outdated** | Kept on record, but does not count and blocks submission. |
+| Dated in the future | **Rejected (400)** | Invalid input: it cannot describe an issued statement. |
+| Any provider Missing or Outdated, or no providers at all | **Submit rejected (422)** | The server enforces completeness. |
 
-![A damaged file is refused with a clear message, and the client's choices are kept](docs/screenshots/09-damaged-file.png)
+Two things I want to be able to defend:
 
-![Viewing what was uploaded, with an in-app preview of a Word document](docs/screenshots/04-statement-viewer.png)
-11. **Replacing a statement starts with no date chosen.** Pre-filling today's date would make the "current" message appear before the client had chosen anything, and pre-filling the old date would silently keep the statement outdated.
-12. **Every row that needs a statement has somewhere to go.** A verified "how to get your statement" page where I have one, otherwise the provider's own website (each checked to respond), otherwise a web search. These links disappear the moment an in-date statement is saved. Only a handful of help links and one phone number are seeded, and only where I could verify them on the provider's own page, because contact details go stale and each one needs upkeep.
-13. **The catalogue is a reviewed data file, not a live feed.** About 230 UK providers in `providers.csv`. No free API returns consumer brand names (the FCA register is looked up by legal entity name, and the Bank of England and PRA lists have no pension or platform coverage), so refreshing means editing one file and redeploying.
-14. **Search is forgiving.** One matcher ignores capitals and punctuation, matches partial words, understands initials ("hl" finds Hargreaves Lansdown) and forgives a single typo ("vangard"). It drives the list search, the Add dialog and the selection panel.
+- **Three calendar months, not 90 days.** Months differ in length, so the cutoff uses calendar-month arithmetic (31 May minus three months is 28 February, as `java.time` does it). The clock is injected, so the boundary is tested on the exact day rather than approximated.
+- **An outdated statement is accepted, not refused.** It is valid data that fails a business requirement, so I save it as Outdated and exclude it from readiness. The client sees what needs replacing instead of losing the record, and all three required statuses stay demonstrable. The calendar warns about it before saving; the server decides.
 
-## 3. Architecture and technology
+<p align="center"><img src="docs/screenshots/07-submit-refused.png" alt="A premature submit: the server's reason and the providers at fault" width="520" height="148"></p>
 
-| Choice | Why |
-|---|---|
-| React, TypeScript, Vite | Required client stack; small static build that Vercel serves instantly. |
-| Tailwind CSS and shadcn/ui | Consistent, accessible building blocks (dialogs, focus handling) so effort goes into the product. |
-| TanStack Query | Loading, error and refresh behaviour for every request, so "what is loading, what failed, what succeeded" is handled in one place. |
-| Spring Boot 3 and Java 21 | Required back end; clean split of web layer, service rules and data. |
-| H2 and Spring Data JPA | Zero set-up database that reseeds on every start. |
-| dnd-kit | Drag and drop that also works by touch and keyboard, not only a mouse. |
-| docx-preview | Draws Word files in the browser, so a private document is never sent to a third-party viewer and the API needs no office software. |
-| Apache PDFBox | Opens uploaded PDFs on the server to confirm they are intact. |
+### Other invariants the server owns
 
-One small, modular service rather than microservices: they would add cost without meeting a requirement.
+- **No duplicate providers, under any disguise.** One definition of "the same name" ignores case, accents, spacing, punctuation and "&" versus "and", so `HSBC`, `H.S.B.C.` and `hsbc` collide. It is applied to catalogue picks, typed-in names, the client's list, repeats in one request, and the catalogue itself (the app refuses to start if two entries collide). A duplicate request is rejected whole (409), never partly applied.
+- **Providers typed in under "Other" are personal.** Stored only on the client's own account, never in the shared catalogue, so they cannot appear in anyone's pick-list.
+- **Uploaded files must be genuinely openable.** The server decides what a file is from its contents and confirms it is intact (PDFs load, pictures decode, Word packages are complete). Damaged files are refused and nothing is saved. A real file with the wrong extension is accepted, because rejecting it adds friction without protecting anything.
+- **Categories are the client's call.** Pre-filled with a suggestion, visible and editable, and validated against a fixed list.
 
-## 4. Design decisions
+<table>
+<tr>
+<td align="center" valign="top"><img src="docs/screenshots/03-statement-date.png" alt="Calendar: older dates in red with a verdict" width="240" height="500"></td>
+<td align="center" valign="top"><img src="docs/screenshots/08-duplicate.png" alt="A disguised duplicate refused with a link to the existing entry" width="240" height="257"></td>
+<td align="center" valign="top"><img src="docs/screenshots/09-damaged-file.png" alt="A damaged file refused, choices kept" width="240" height="333"></td>
+</tr>
+<tr>
+<td align="center"><sub>Date rule shown before saving</sub></td>
+<td align="center"><sub>Duplicate caught, with a way to the entry</sub></td>
+<td align="center"><sub>Damaged file refused, nothing lost</sub></td>
+</tr>
+</table>
 
-- **Brand and tone.** Deep charcoal-green surfaces, mint for actions and progress, amber and coral for outdated and missing, never colour alone (every status has an icon and a word). Copy is calm and discreet for high-net-worth clients, and it makes no security claims the demo cannot back up (there is no sign-in).
-- **Guidance over admin.** Rows that need attention explain why in plain words. Three shortcuts take the client from "what is left?" to done: every progress-bar segment, and every provider name in the summary sentence, jumps to that provider and opens Add statement (for missing) or Replace statement (for outdated); a green segment only scrolls to the statement already on file, so a tap never opens a pointless dialog. "N providers need attention" is itself a button that filters the list to what is left. Hovering or tabbing to a bar shows the provider, its status and what a tap will do, phrased as a question ("Add statement?"), so a tap never feels like an accident.
+## 4. API design and error handling
 
-![Hovering a bar segment: provider, status and what a tap will do; the names below are tappable too](docs/screenshots/10-progress-shortcuts.png)
-- **Calm microinteractions.** Short transitions that respect reduced-motion, a highlight when a card is jumped to, and a confirmation before anything is removed.
-- **Accessible by default.** Keyboard and screen-reader support for the bar, dialogs, calendar and drag and drop, labelled controls, and a layout that stacks cleanly on a phone.
+The endpoint table is in the [README](README.md#api). The design choices behind it:
 
-<p align="center"><img src="docs/screenshots/06-mobile.png" alt="FINON on a phone" width="300"></p>
+- **Resource-shaped, with the aggregate on read.** `GET /api/accounts` returns the rows *and* the readiness summary, so the client never needs a second call to know whether it may submit.
+- **Mutations return the updated state.** Adding returns the refreshed list, so a response is never out of step with the screen.
+- **One error shape for every failure:** `{ code, message, issues[] }`, produced in a single exception handler. `code` is stable for programmes and tests, `message` is written for the client and shown as it is, and `issues` carries the providers at fault when a submit is refused.
+- **Status codes mean something:** 400 for invalid input (future date, bad name, bad category, unsupported or unreadable file), 404 for unknown references, 409 for a duplicate, 413 for an oversized file, 422 for a well-formed submit that breaks a business rule. I separated 400 from 422 deliberately: the request was valid, the *state* was not ready.
+- **Validate at the boundary, once.** Shape and size checks sit on the request; the rules (duplicates, dates, completeness) sit in the service, where tests can reach them without HTTP.
 
-## 5. Testing
+## 5. UX decisions and accessibility
 
-I tested the behaviour I most wanted to protect, on both sides, then proved the whole story in a real browser.
+- **Submit uses `aria-disabled`, not `disabled`.** It looks inactive but can still be pressed, so a premature attempt surfaces the server's explanation and outlines the cards to fix. A dead button tells the client nothing. I think this is the clearest place where a business rule changed a UI choice.
+- **Move from "what is left" to done in one tap.** Every progress-bar segment, and every provider name in the summary, opens the right action for that provider; "N providers need attention" filters the list to what is left. Hovering or tabbing to a bar says what a tap will do ("Add statement?").
+- **Show the verdict before the client commits.** The calendar knows today's date, marks older dates red and states in words whether the statement counts. Nothing is pre-selected, so no message appears about a date the client hasn't chosen.
+- **Make defaults visible.** Category dropdowns are pre-filled with a suggestion the client can see and change, rather than applied silently.
+- **Reversible and confirmed.** Removing a provider asks first; an upload that fails keeps the chosen file and date so nothing has to be re-entered.
+- **Accessible by default.** Keyboard and screen-reader support for the bar, dialogs, calendar and drag and drop; status is never colour alone (always an icon and a word); motion respects reduced-motion; the layout stacks cleanly on a phone.
 
-- **Backend (48 tests).** Status boundaries with a frozen clock, duplicate rules in every disguise, submit refusal (including calling the API directly), categories, manual providers staying out of the catalogue, and the file rules: real files of each kind accepted, truncated, corrupt and unrecognised files refused, a genuine renamed file accepted.
-- **Frontend (94 tests).** Readiness and the Submit button respond to server data; feedback for loading, success and failure; search, filters and shortcuts; the calendar with a frozen date; category choice and moves; the viewer, including Word previews and fallbacks; duplicate and already-added handling.
-- **Browser test (Playwright).** One end-to-end story: premature submit refused, a damaged upload refused, statements added and replaced, a Word document previewed, a card dragged to another category, providers added and removed, and the pack submitted. It also guards the dialog scroll height, after a bug where hidden controls inflated it.
+<p align="center"><img src="docs/screenshots/10-progress-shortcuts.png" alt="Hovering a bar segment: provider, status and what a tap does; names below are tappable" width="520" height="194"></p>
 
-## 6. CI and deployment
+<table>
+<tr>
+<td align="center" valign="top"><img src="docs/screenshots/02-add-providers.png" alt="Add providers: pre-filled categories, searchable and removable selection" width="260" height="416"></td>
+<td align="center" valign="top"><img src="docs/screenshots/04-statement-viewer.png" alt="Viewing an uploaded statement with an in-app Word preview" width="260" height="343"></td>
+</tr>
+<tr>
+<td align="center"><sub>Visible, editable categories</sub></td>
+<td align="center"><sub>View what was uploaded, in place</sub></td>
+</tr>
+</table>
 
-GitHub Actions runs the backend, frontend and browser tests on every pull request and on `main`. **Production only changes after those checks pass:** Vercel's own deploy-on-push is switched off for `main` and a final CI job triggers the deploy; Render redeploys the API only after the GitHub checks succeed. The frontend is on Vercel and the Java API on Render (Vercel does not run a long-lived JVM).
+## 6. Testing strategy and CI
 
-## 7. Trade-offs and limits
+I tested the behaviour I most wanted to protect, close to where it lives, then proved the whole story in a real browser.
 
-- **In-memory H2.** Zero set-up, but all data resets when the API restarts; the free host also sleeps when idle, so the first request after a quiet spell is slow.
-- **Stored files go beyond the brief.** The brief said to treat an upload as a name and a date. I chose to keep the real file so the client can view what they uploaded. It lives in the same in-memory database; for real use it would move to object storage with virus scanning and retention rules.
-- **"Submitted" is not persisted.** The API validates and acknowledges but keeps no submission record.
-- **Old `.doc` files cannot be previewed** in a browser reliably, so they offer a download. Modern `.docx` files are previewed.
-- **No authentication and a single client**, as scoped; the client's first name is a single constant.
-- **Some edge cases I cannot detect,** such as a file corrupted in the middle that still looks complete at both ends.
+| Layer | Count | What it protects |
+|---|---|---|
+| Backend (JUnit, Spring Boot Test) | **48** | The rules: status boundaries on a frozen clock, duplicates in every disguise, submit refusal including direct API calls, categories, personal providers staying out of the catalogue, and the file rules (real files accepted, truncated or corrupt ones refused, a renamed genuine file accepted). |
+| Frontend (Vitest, Testing Library) | **94** | That the screen follows server data, gives feedback for loading, success and failure, and handles search, filters, shortcuts, the calendar, categories, the viewer and duplicates. |
+| Browser (Playwright) | **2** | One full journey: premature submit refused, a damaged upload refused, statements added and replaced, a Word preview, a drag between categories, providers added and removed, then submit. Plus a layout guard for a scrolling dialog, added after a real bug. |
 
-## 8. With more time
+**CI and release.** GitHub Actions runs all three layers on every pull request and on `main`. Production changes only after they pass: Vercel's deploy-on-push is switched off for `main` and a final CI job triggers the deploy; Render redeploys the API only after the checks succeed. I merged through pull requests throughout.
 
-- A weekly job that checks the catalogue against the Bank of England and PRA lists and the FCA register, flags closed or renamed firms and opens a pull request for review.
-- PostgreSQL, object storage for files, a stored submission record with an audit trail, idempotent submit and optimistic locking.
-- Provider logos and aliases ("Lloyds" finding Lloyds Bank), and optimistic UI with per-row pending states.
-- Broader browser coverage (mobile viewport, keyboard-only run) and automated accessibility checks.
-- Rate limiting and structured logging on the API.
+**A caveat on the tests:** most were written with AI assistance, so I treated them as a safety net, not proof. What matters is that each assertion reflects a rule I specified.
 
-## 9. How I used AI
+## 7. Trade-offs, limitations and next steps
 
-I used **Claude Code (the command-line tool)** throughout as an implementation partner. I made the decisions and it executed them. Concretely:
+| Choice | Alternative | Consequence I accepted |
+|---|---|---|
+| In-memory H2 | PostgreSQL | Zero set-up and a fresh demo every start; all data, including files, is lost on restart, and the free host sleeps when idle. |
+| Store the real file (beyond the brief, which said a name and a date) | Treat an upload as a name and a date | The client can view what they uploaded, at the cost of storing documents. See the security note below. |
+| Catalogue as a reviewed data file | A live feed | No free source returns consumer brand names, so refreshing means editing one file. Cheap and reviewable; stale unless someone maintains it. |
+| Preview `.docx` in the browser | Hand it to a third-party viewer | Private documents never leave the app; legacy `.doc` cannot be drawn reliably, so it offers a download. |
+| "Submitted" is not persisted | A stored submission record | The API validates and acknowledges but keeps no audit trail. |
 
-- **What I decided.** The stack and deployment split; the visual direction; every product and logic rule above; and the scope calls, such as keeping the Submit button pressable, allowing outdated dates, storing real files beyond the brief, refusing damaged files but accepting renamed ones, keeping typed-in providers separate and personal, one strict definition of duplicate names, categories the client can see and change, and requiring that nothing reaches production unless CI passes.
-- **What Claude Code did.** Scaffolded the projects, wrote the Spring Boot and React code to those decisions, generated and ran the tests, took screenshots to check the screens, and wrote first drafts of the documentation.
-- **How I steered it.** I worked by trying the running app and giving specific feedback, and the rules above came out of that loop. For example I rejected a file check that blocked a harmless renamed file, asked for broken files to be refused instead, made category suggestions visible rather than hidden, and asked for a confirmation before anything is removed. I did not accept output blindly: I ran it locally before anything was merged, and the work went through pull requests with CI.
-- **What I verified myself.** The behaviour in the browser, the wording shown to clients, and the correctness of the rules. Tests were generated by the AI against rules I specified and I used them as a safety net, not as proof of correctness on their own.
+**Java rather than Kotlin.** The brief allowed either ("Kotlin/Java"), and I used Java 21. Nothing in the design depends on that: the request and response types are records (they map to Kotlin data classes), and the rules sit in plain service methods behind a thin controller, which translate directly.
 
-I am happy to walk through any file and explain why it looks the way it does.
+**Not suitable for real documents as it stands.** The demo deliberately has no sign-in and a single client, yet it stores uploaded files. A real version would need authentication and per-client access control, encrypted object storage, malware scanning, retention rules and an audit log. I did not build these, and the demo should not be given real financial documents.
+
+**What I chose not to build:** authentication, multiple clients, a persistent database, an audit trail, and a live provider feed. Each was out of scope or needs infrastructure the exercise doesn't have.
+
+**With more time:** PostgreSQL and object storage; a stored submission record with idempotent submit and optimistic locking; a scheduled check of the catalogue against the Bank of England, PRA and FCA registers; rate limiting and structured logging; and broader browser coverage (mobile viewport, keyboard-only) with automated accessibility checks.
+
+## 8. AI-assisted development and verification
+
+I used **Claude Code** as an implementation partner, mainly for scaffolding, component and endpoint implementation, test generation and drafting documentation. I made the decisions and it executed them.
+
+**How I worked.** I stated the behaviour and constraints first, had the AI implement against them, then reviewed the result in the running app and corrected it. It was iterative, not one prompt to an application.
+
+**Decisions I made and directed:** the stack and the Vercel/Render split; the server-owned readiness model; keeping Submit pressable; accepting outdated statements; storing real files beyond the brief; personal providers kept out of the catalogue; one strict duplicate rule; visible, editable categories; and a rule that nothing reaches production unless CI passes.
+
+**Two places where review changed the outcome:**
+
+- *Upload validation.* The first version rejected a file whose contents didn't match its extension. I pushed back: a genuine document with the wrong extension isn't a problem, whereas a *broken* file is. We moved to content-based checks that refuse damaged files and accept renamed ones.
+- *Category selection.* The first version applied a suggested category silently. After using it in the browser I asked for the suggestion to be visible and editable before saving.
+
+**How I verified.** Automated tests at three levels, hands-on checks in the browser, and pull requests with CI gating every merge. I did not accept generated tests as independent proof; I read them against the rules I had specified.
+
+I can walk through any file and explain why it looks the way it does.
