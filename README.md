@@ -13,6 +13,7 @@
 - Lets the client add providers from a catalogue of about 230 UK banks, building societies, platforms, pensions and insurers, pick several at once, or type in anything missing.
 - Groups providers by a category the client chooses (changeable by dropdown or drag and drop); anything typed in sits in its own "Added by you" section.
 - Accepts a statement as a real file (PDF, Word, JPG or PNG up to 5 MB) plus the date printed on it, refuses damaged files, and lets the client view what they uploaded.
+- Turns "what is left?" into one tap: every segment of the progress bar, and every provider name in the summary sentence, jumps straight to that provider and opens the right action, and a "Needs attention" filter shows only what is left.
 - Lets the client submit only when every provider has a current statement, **enforced by the server**, with a clear explanation when something is still wrong.
 
 ## Screens
@@ -23,6 +24,12 @@
 | **Adding providers.** Search with forgiving matching ("hl" finds Hargreaves Lansdown), tick several, type in anything missing, and check each category (pre-filled, editable) before adding. | **Choosing the statement date.** The calendar knows today's date: older dates turn red and the message says plainly whether the statement counts. |
 | ![Statement viewer](docs/screenshots/04-statement-viewer.png) | ![Drag and drop](docs/screenshots/05-drag-and-drop.png) |
 | **Viewing what was uploaded.** Details, Open and Download, and an in-app preview of PDFs, images and Word documents. | **Organising by category.** Drag a card onto any category (empty ones appear as drop targets); the dropdown on each card does the same. |
+
+### From "what is left?" to done in one tap
+
+![Progress bar shortcuts](docs/screenshots/10-progress-shortcuts.png)
+
+Each bar segment is a button. Hovering or tabbing to one shows the provider, its status and what a tap will do ("Add statement?"); tapping it scrolls to that provider and opens the Add or Replace dialog straight away. The names in the sentence beneath (dotted underline) do the same, and "Submit unavailable - 5 providers need attention" is itself a shortcut that filters the list to what is left.
 
 <p align="center"><img src="docs/screenshots/06-mobile.png" alt="FINON on a phone" width="320"></p>
 

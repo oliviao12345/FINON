@@ -59,7 +59,9 @@ One small, modular service rather than microservices: they would add cost withou
 ## 4. Design decisions
 
 - **Brand and tone.** Deep charcoal-green surfaces, mint for actions and progress, amber and coral for outdated and missing, never colour alone (every status has an icon and a word). Copy is calm and discreet for high-net-worth clients, and it makes no security claims the demo cannot back up (there is no sign-in).
-- **Guidance over admin.** Rows that need attention explain why in plain words. The progress bar segments and the provider names in the summary sentence jump straight to the right action, and "N providers need attention" filters the list to what is left.
+- **Guidance over admin.** Rows that need attention explain why in plain words. Three shortcuts take the client from "what is left?" to done: every progress-bar segment, and every provider name in the summary sentence, jumps to that provider and opens Add statement (for missing) or Replace statement (for outdated); a green segment only scrolls to the statement already on file, so a tap never opens a pointless dialog. "N providers need attention" is itself a button that filters the list to what is left. Hovering or tabbing to a bar shows the provider, its status and what a tap will do, phrased as a question ("Add statement?"), so a tap never feels like an accident.
+
+![Hovering a bar segment: provider, status and what a tap will do; the names below are tappable too](docs/screenshots/10-progress-shortcuts.png)
 - **Calm microinteractions.** Short transitions that respect reduced-motion, a highlight when a card is jumped to, and a confirmation before anything is removed.
 - **Accessible by default.** Keyboard and screen-reader support for the bar, dialogs, calendar and drag and drop, labelled controls, and a layout that stacks cleanly on a phone.
 
